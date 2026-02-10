@@ -1,4 +1,4 @@
-<!-- Version: v24.0 (Fixed: LocalStorage Persistence, Map, UI) -->
+<!-- Version: v25.0 (Fixed: Map Re-render Logic, Added Address Field) -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- Firebase SDK (背景備份用) -->
+    <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -36,7 +36,7 @@
             const db = getFirestore(app);
             window.db = db;
             window.fireOps = { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch };
-            console.log("Firebase ready for background sync");
+            console.log("Firebase initialized");
         } catch (e) {
             console.log("Offline mode");
         }
@@ -102,14 +102,14 @@
             background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.6) 100%);
         }
 
-        /* 地圖容器 */
+        /* 地圖容器 - 強制全螢幕 */
         #map-container {
             width: 100%;
             height: 100%;
             position: absolute;
             top: 0;
             left: 0;
-            z-index: 0; 
+            z-index: 10; 
             background-color: #e5e7eb;
         }
 
@@ -217,7 +217,7 @@
                             </div>
 
                             <!-- Right: Info Card -->
-                            <div class="event-card flex-1 p-4 active:scale-98 transition-transform" @click="openMap(event.locationName || event.title)">
+                            <div class="event-card flex-1 p-4 active:scale-98 transition-transform" @click="openMap(event)">
                                 <div class="flex justify-between items-start">
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-2 mb-1">
@@ -268,11 +268,11 @@
             </div>
 
             <!-- 2. Map Tab (Full Screen) -->
-            <div v-show="currentTab === 'map'" class="h-full w-full relative">
-                <div id="map-container"></div>
+            <div v-show="currentTab === 'map'" class="absolute inset-0 z-30 bg-slate-100 flex flex-col h-full w-full">
+                <div id="map-container" class="w-full h-full"></div>
+                <!-- Map Overlay Controls -->
                 <div class="absolute bottom-24 right-4 flex flex-col gap-2 z-[400]">
-                    <button @click="locateUser" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-teal-600 hover:bg-teal-50 border border-slate-100"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
-                    <button @click="fitBounds" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:bg-slate-50 border border-slate-100"><i data-lucide="maximize" class="w-6 h-6"></i></button>
+                    <button @click="forceInitMap" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:bg-slate-50 border border-slate-100"><i data-lucide="refresh-cw" class="w-6 h-6"></i></button>
                 </div>
                 <div class="absolute top-4 left-4 right-4 bg-white/90 backdrop-blur rounded-xl p-3 shadow-lg z-[400] border border-white/50 text-center pointer-events-none">
                      <p class="text-xs text-slate-500">顯示行程：<span class="font-bold text-teal-600">{{ tripDays[currentDateIndex].dateShort }}</span></p>
@@ -282,7 +282,7 @@
         </main>
 
         <!-- Floating Add Button -->
-        <button v-if="currentTab==='schedule'" @click="showEventModal=true" class="fixed bottom-24 right-6 w-14 h-14 bg-secondary rounded-full shadow-lg text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-50">
+        <button v-if="currentTab==='schedule'" @click="openAddModal" class="fixed bottom-24 right-6 w-14 h-14 bg-secondary rounded-full shadow-lg text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-50">
             <i data-lucide="plus" class="w-8 h-8"></i>
         </button>
 
@@ -427,8 +427,18 @@
                             </select>
                         </div>
                     </div>
-                    <input v-model="formEvent.title" class="input" placeholder="名稱">
-                    <input v-model="formEvent.locationName" placeholder="地點名稱" class="input">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">名稱</label>
+                        <input v-model="formEvent.title" class="input" placeholder="名稱">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">地點名稱</label>
+                        <input v-model="formEvent.locationName" placeholder="例如：Ayala Mall" class="input">
+                    </div>
+                     <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">地址 (Google 導航用)</label>
+                        <input v-model="formEvent.address" placeholder="輸入詳細地址或連結" class="input">
+                    </div>
                     <div class="flex gap-2 mt-4">
                         <button @click="showEventModal=false" class="flex-1 bg-slate-100 py-3 rounded-xl font-bold text-slate-500">取消</button>
                         <button @click="saveEvent" class="flex-1 bg-teal-600 text-white py-3 rounded-xl font-bold">儲存</button>
@@ -444,7 +454,7 @@
 
         createApp({
             setup() {
-                const STORAGE_KEY = 'remi_trip_v24_data';
+                const STORAGE_KEY = 'remi_trip_v25_data';
                 
                 const currentTab = ref('schedule');
                 const activePopup = ref(null);
@@ -453,7 +463,7 @@
                 const showEventModal = ref(false);
                 
                 // Form Data
-                const formEvent = ref({ time: '12:00', title: '', type: 'food' });
+                const formEvent = ref({ time: '12:00', title: '', type: 'food', address: '' });
                 const formShopping = ref({ name: '' });
                 const formExpense = ref({ name: '', amount: null, date: new Date().toISOString().split('T')[0] });
 
@@ -471,60 +481,14 @@
                 const initialItinerary = [
                     { id: '1-0', date: '2026-02-11', time: '03:15', title: '飛往馬尼拉 5J311', locationName: 'TPE T1 -> MNL T3', type: 'transport', tag: '轉機', lat: 14.512, lng: 121.015, note: '轉機需領行李，重掛。' },
                     { id: '1-1', date: '2026-02-11', time: '05:45', title: '抵達馬尼拉 T3', locationName: 'MNL T3', type: 'note', tag: '領行李', lat: 14.512, lng: 121.015 },
-                    { id: '1-1-b', date: '2026-02-11', time: '07:00', title: '機場早餐', locationName: 'MNL T3 美食街', type: 'food', tag: 'Jollibee', lat: 14.512, lng: 121.015 },
-                    { id: '1-2', date: '2026-02-11', time: '10:50', title: '飛往宿霧 5J585', locationName: 'MNL T3 -> CEB', type: 'transport' },
-                    { id: '1-3', date: '2026-02-11', time: '12:00', title: '抵達宿霧 & Grab', locationName: 'Mactan Airport', type: 'transport', tag: '叫車', lat: 10.308, lng: 123.979 },
-                    { id: '1-4', date: '2026-02-11', time: '13:00', title: '飯店 Check-in', locationName: '宿務派克蘭國際大飯店', type: 'hotel', transportTime: '30 min', note: '寄放行李、稍作休息' },
-                    { id: '1-5', date: '2026-02-11', time: '14:00', title: 'Mall 附近換錢', locationName: 'Ayala Center Cebu', type: 'activity', tag: '匯率佳', lat: 10.317, lng: 123.905 },
-                    { id: '1-6', date: '2026-02-11', time: '15:00', title: '午餐 House of Lechon', locationName: 'Ayala Center', type: 'food', tag: '推薦', note: '宿霧必吃烤乳豬' },
-                    { id: '1-7', date: '2026-02-11', time: '18:00', title: '夜市 Sugbo Mercado', locationName: 'IT Park', type: 'food', tag: '晚餐', note: '當地人氣夜市' },
-                    { id: '2-0', date: '2026-02-12', time: '07:30', title: '飯店早餐', locationName: 'Parklane Hotel', type: 'food', lat: 10.317, lng: 123.903 },
-                    { id: '2-1', date: '2026-02-12', time: '09:00', title: '抵達 Cebu Ocean Park', locationName: 'SM Seaside 旁', type: 'spot', lat: 10.283, lng: 123.882 },
-                    { id: '2-2', date: '2026-02-12', time: '10:00', title: 'Grab 移動', locationName: '', type: 'transport' },
-                    { id: '2-3', date: '2026-02-12', time: '11:00', title: '水族館網美餐 (Aqua Dining)', locationName: '海底隧道旁', type: 'food', tag: '需預約', lat: 10.283, lng: 123.882 },
-                    { id: '2-4', date: '2026-02-12', time: '12:00', title: 'SM Seaside Mall 逛街', locationName: 'Blackbeard Seafood', type: 'activity', lat: 10.282, lng: 123.881 },
-                    { id: '2-5', date: '2026-02-12', time: '13:00', title: '麥哲倫十字架', locationName: 'Magellans Cross', type: 'spot', lat: 10.293, lng: 123.901 },
-                    { id: '2-6', date: '2026-02-12', time: '14:00', title: '聖嬰大教堂', locationName: 'Basilica del Santo Niño', type: 'spot', lat: 10.294, lng: 123.902 },
-                    { id: '2-7', date: '2026-02-12', time: '15:00', title: '聖佩德羅堡', locationName: 'Fort San Pedro', type: 'spot', lat: 10.292, lng: 123.905 },
-                    { id: '2-8', date: '2026-02-12', time: '18:00', title: '晚餐 Texas Roadhouse', locationName: 'SM Seaside', type: 'food', tag: '推薦', lat: 10.282, lng: 123.881 },
-                    { id: '3-0', date: '2026-02-13', time: '07:30', title: '飯店早餐', locationName: 'Parklane Hotel', type: 'food', lat: 10.317, lng: 123.903 },
-                    { id: '3-1', date: '2026-02-13', time: '10:40', title: '抵達港口 Pier 1', locationName: 'Cebu Pier 1', type: 'note', tag: '買午餐', lat: 10.291, lng: 123.905 },
-                    { id: '3-2', date: '2026-02-13', time: '11:40', title: '搭船 Ocean Jet', locationName: '前往薄荷島', type: 'transport', tag: 'KKDay票' },
-                    { id: '3-3', date: '2026-02-13', time: '14:00', title: '抵達 Tagbilaran', locationName: 'Bohol', type: 'transport', tag: '包車1200p', lat: 9.645, lng: 123.850 },
-                    { id: '3-4', date: '2026-02-13', time: '15:00', title: '飯店 Check-in', locationName: 'Best Western Plus (Alona)', type: 'hotel', lat: 9.546, lng: 123.774 },
-                    { id: '3-5', date: '2026-02-13', time: '16:00', title: '度假村玩', locationName: 'Swimming Pool', type: 'activity', lat: 9.546, lng: 123.774 },
-                    { id: '3-6', date: '2026-02-13', time: '18:00', title: '晚餐 Giuseppe Pizzeria', locationName: 'Alona Beach Rd', type: 'food', tag: '4.3⭐', lat: 9.549, lng: 123.775 },
-                    { id: '4-0', date: '2026-02-14', time: '07:30', title: '飯店早餐', locationName: 'Best Western', type: 'food', lat: 9.546, lng: 123.774 },
-                    { id: '4-1', date: '2026-02-14', time: '09:00', title: 'Napaling Reef', locationName: '沙丁魚浮潛', type: 'spot', lat: 9.605, lng: 123.770 },
-                    { id: '4-2', date: '2026-02-14', time: '11:00', title: 'Hinagdanan Cave', locationName: '鐘乳石洞', type: 'spot', note: 'No Swim', lat: 9.613, lng: 123.799 },
+                    { id: '1-6', date: '2026-02-11', time: '15:00', title: '午餐 House of Lechon', locationName: 'Ayala Center', type: 'food', tag: '推薦', note: '宿霧必吃烤乳豬', lat: 10.317, lng: 123.906 },
+                    { id: '2-1', date: '2026-02-12', time: '09:00', title: 'Cebu Ocean Park', locationName: 'SM Seaside 旁', type: 'spot', note: '適合溜小孩', lat: 10.283, lng: 123.882 },
+                    { id: '3-2', date: '2026-02-13', time: '11:40', title: '搭船 Ocean Jet', locationName: '前往薄荷島', type: 'transport', tag: 'KKDay票', lat: 10.291, lng: 123.905 },
                     { id: '4-3', date: '2026-02-14', time: '12:00', title: '午餐 Ubeco', locationName: '韓系網美店', type: 'food', tag: '指定', lat: 9.6056, lng: 123.7742 },
-                    { id: '4-4', date: '2026-02-14', time: '14:00', title: '度假村休息', locationName: 'Best Western', type: 'activity', lat: 9.546, lng: 123.774 },
-                    { id: '4-5', date: '2026-02-14', time: '18:00', title: '晚餐 Mist', locationName: '森林系餐廳', type: 'food', tag: '推薦', lat: 9.554, lng: 123.766 },
-                    { id: '5-0', date: '2026-02-15', time: '05:30', title: '簡易早餐', locationName: '餐盒', type: 'food', tag: '早起', lat: 9.546, lng: 123.774 },
-                    { id: '5-1', date: '2026-02-15', time: '06:00', title: '跳島一日遊', locationName: 'Balicasag (海龜)', type: 'spot', tag: '包船', lat: 9.518, lng: 123.680 },
-                    { id: '5-2', date: '2026-02-15', time: '11:00', title: 'Virgin Island', locationName: '處女島', type: 'spot', lat: 9.556, lng: 123.730 },
-                    { id: '5-4', date: '2026-02-15', time: '14:30', title: 'Check in Villa', locationName: 'Villa Kalachuchi (Danao)', type: 'hotel', note: '無早餐有廚房', lat: 9.556, lng: 123.760 },
-                    { id: '5-5', date: '2026-02-15', time: '18:00', title: '晚餐 Luna Rossa', locationName: '素食義大利菜', type: 'food', tag: '推薦', lat: 9.553, lng: 123.762 },
-                    { id: '6-0', date: '2026-02-16', time: '08:00', title: 'Villa 早餐', locationName: 'Villa Kalachuchi', type: 'note', tag: '自理', lat: 9.556, lng: 123.760 },
-                    { id: '6-1', date: '2026-02-16', time: '09:00', title: '包車一日遊', locationName: 'Bohol 內陸', type: 'transport', tag: '6500p', lat: 9.696, lng: 124.120 },
-                    { id: '6-2', date: '2026-02-16', time: '10:00', title: '眼鏡猴 & 人造林', locationName: 'Tarsier Area', type: 'spot', lat: 9.696, lng: 124.120 },
-                    { id: '6-3', date: '2026-02-16', time: '12:00', title: '午餐 Rio Verde', locationName: '漂流竹筏', type: 'food', lat: 9.623, lng: 124.019 },
                     { id: '6-4', date: '2026-02-16', time: '14:00', title: '巧克力山', locationName: 'Chocolate Hills', type: 'spot', lat: 9.829, lng: 124.139 },
-                    { id: '6-5', date: '2026-02-16', time: '15:30', title: 'Zipline / ATV', locationName: 'Loboc', type: 'activity', lat: 9.660, lng: 124.025 },
-                    { id: '6-6', date: '2026-02-16', time: '18:00', title: '晚餐 Bohol Bee Farm', locationName: '海景懸崖', type: 'food', tag: '必吃', lat: 9.576, lng: 123.821 },
-                    { id: '7-1', date: '2026-02-17', time: '11:00', title: 'South Farm', locationName: '動物農場', type: 'spot', lat: 9.569, lng: 123.789 },
-                    { id: '7-4', date: '2026-02-17', time: '15:30', title: '前往邦勞機場', locationName: 'Panglao Airport', type: 'transport', lat: 9.565, lng: 123.763 },
-                    { id: '7-5', date: '2026-02-17', time: '18:20', title: '飛往馬尼拉 5J616', locationName: 'TAG -> MNL', type: 'transport' },
-                    { id: '7-6', date: '2026-02-17', time: '21:30', title: '晚餐 Shake Shack', locationName: 'BGC', type: 'food', tag: '簡單吃', lat: 14.550, lng: 121.050 },
-                    { id: '7-7', date: '2026-02-17', time: '22:00', title: '入住 Uptown', locationName: 'Uptown Parksuites', type: 'hotel', lat: 14.557, lng: 121.054 },
-                    { id: '8-0', date: '2026-02-18', time: '09:00', title: 'Wildflour Cafe', locationName: 'Uptown', type: 'food', tag: '早餐推薦', lat: 14.552, lng: 121.047 },
-                    { id: '8-1', date: '2026-02-18', time: '10:00', title: 'Mind Museum', locationName: '科學館', type: 'spot', lat: 14.551, lng: 121.045 },
-                    { id: '8-2', date: '2026-02-18', time: '12:00', title: '午餐 Mamou Meats', locationName: 'Uptown', type: 'food', tag: '推薦', lat: 14.557, lng: 121.054 },
-                    { id: '8-3', date: '2026-02-18', time: '19:00', title: '前往機場', locationName: 'MNL T3', type: 'transport', lat: 14.512, lng: 121.015 },
-                    { id: '8-4', date: '2026-02-18', time: '23:35', title: '返台 5J310', locationName: 'MNL -> TPE', type: 'transport' }
+                    { id: '7-6', date: '2026-02-17', time: '21:30', title: '晚餐 Shake Shack', locationName: 'BGC', type: 'food', tag: '簡單吃', lat: 14.550, lng: 121.050 }
                 ];
 
-                // Reactive State (Initialize from LocalStorage if exists)
                 const loadFromLocal = () => {
                     const saved = localStorage.getItem(STORAGE_KEY);
                     if (saved) {
@@ -545,7 +509,6 @@
                 const shoppingList = ref(localData ? localData.shopping : []);
                 const expenseList = ref(localData ? localData.expenses : []);
 
-                // Persistence Helper
                 const saveToLocal = () => {
                     const data = {
                         events: events.value,
@@ -553,14 +516,6 @@
                         expenses: expenseList.value
                     };
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-                };
-
-                // Sync to Cloud (Background)
-                const syncToCloud = () => {
-                    if (window.fireOps && window.db) {
-                         // Implement actual sync logic here if needed
-                         // For now, local persistence is primary to solve user issue
-                    }
                 };
 
                 const resetToDefault = () => {
@@ -573,7 +528,6 @@
                     }
                 };
 
-                // Computed
                 const currentDayEvents = computed(() => {
                     const targetDate = tripDays[currentDateIndex.value].date;
                     return events.value.filter(e => e.date === targetDate).sort((a,b) => a.time.localeCompare(b.time));
@@ -583,7 +537,6 @@
                 const currentWeather = computed(() => ({ temp: 30, feels_like: 34, icon: 'sun' }));
                 const currentHeaderImage = computed(() => tripDays[currentDateIndex.value].image);
 
-                // Rate Calc
                 const calcTWD = computed(() => {
                     const val = parseFloat(calcPHP.value);
                     return isNaN(val) ? 0 : Math.round(val * 0.56);
@@ -591,12 +544,27 @@
 
                 const totalExpense = computed(() => expenseList.value.reduce((sum, item) => sum + Number(item.amount || 0), 0));
 
-                // Methods
                 const changeDate = (idx) => currentDateIndex.value = idx;
-                const openMap = (q) => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`, '_blank');
+                
+                // Enhanced Open Map
+                const openMap = (event) => {
+                    // 優先使用地址 -> 地點名稱 -> 標題
+                    const query = event.address || event.locationName || event.title;
+                    if(query) {
+                        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, '_blank');
+                    }
+                };
                 
                 const openPopup = (type) => { activePopup.value = type; };
                 const closePopup = () => { activePopup.value = null; };
+
+                const openAddModal = () => {
+                    formEvent.value = {
+                        date: tripDays[currentDateIndex.value].date,
+                        time: '12:00', type: 'spot', title: '', locationName: '', address: '', note: ''
+                    };
+                    showEventModal.value = true;
+                };
 
                 const saveEvent = () => {
                     events.value.push({...formEvent.value, id: Date.now(), date: tripDays[currentDateIndex.value].date});
@@ -631,23 +599,25 @@
                     saveToLocal();
                 };
 
-                // Map Logic
+                // Map Logic (Fixed: Force Re-render)
                 let map = null;
                 let markersLayer = null;
 
-                const initMap = () => {
-                    if (map) { map.invalidateSize(); return; }
-                    map = L.map('map-container', { zoomControl: false }).setView([10.3157, 123.8854], 12);
-                    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
-                    markersLayer = L.layerGroup().addTo(map);
-                    updateMapMarkers();
-                };
+                const forceInitMap = () => {
+                     if (map) { map.remove(); map = null; }
+                     // Delay to allow DOM to show
+                     setTimeout(() => {
+                         map = L.map('map-container', { zoomControl: false }).setView([10.3157, 123.8854], 12);
+                         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
+                         markersLayer = L.layerGroup().addTo(map);
+                         updateMapMarkers();
+                     }, 200);
+                }
 
                 const updateMapMarkers = () => {
                     if (!map || !markersLayer) return;
                     markersLayer.clearLayers();
                     const dayEvents = events.value.filter(e => e.date === tripDays[currentDateIndex.value].date && e.lat && e.lng);
-                    
                     if (dayEvents.length > 0) {
                         const latlngs = [];
                         dayEvents.forEach((e, idx) => {
@@ -668,26 +638,9 @@
 
                 const switchTab = (tabId) => {
                     currentTab.value = tabId;
-                    if(tabId === 'map') {
-                        setTimeout(() => {
-                            if(!map) initMap();
-                            else { 
-                                map.invalidateSize(); 
-                                updateMapMarkers(); 
-                            }
-                        }, 100);
-                    }
+                    if(tabId === 'map') forceInitMap();
                 };
                 
-                // Add button handler
-                const openAddModal = () => {
-                    formEvent.value = {
-                        date: tripDays[currentDateIndex.value].date,
-                        time: '12:00', type: 'spot', title: '', locationName: '', note: ''
-                    };
-                    showEventModal.value = true;
-                };
-
                 // Helpers
                 const getCategoryName = (c) => ({ spot: '景點', food: '美食', hotel: '住宿', transport: '交通', note: '筆記', activity: '活動' })[c] || '其他';
                 const getCategoryColor = (c) => ({ spot: 'bg-teal-500', food: 'bg-amber-400', hotel: 'bg-indigo-500', transport: 'bg-sky-500', note: 'bg-rose-400' })[c] || 'bg-slate-400';
@@ -711,15 +664,7 @@
 
                 watch([currentTab, currentDateIndex, activePopup], () => {
                     nextTick(() => lucide.createIcons());
-                    if(currentTab.value === 'map') {
-                        setTimeout(() => {
-                            if(!map) initMap();
-                            else { 
-                                map.invalidateSize(); 
-                                updateMapMarkers(); 
-                            }
-                        }, 100);
-                    }
+                    if(currentTab.value === 'map') forceInitMap();
                 });
 
                 return {
@@ -731,7 +676,7 @@
                     currentWeather, currentCity, currentHeaderImage, calcPHP, calcTWD,
                     showEventModal, formEvent,
                     handleImageError: (e) => e.target.src = 'https://images.unsplash.com/photo-1595130456565-5c1a7044033b?q=80&w=800',
-                    initMap: () => {}, locateUser, fitBounds, openAddModal, 
+                    initMap: forceInitMap, locateUser, fitBounds, openAddModal, 
                     shoppingList, formShopping, addShopping, deleteItem,
                     expenseList, formExpense, addExpense, totalExpense,
                     resetToDefault, firebaseReady: ref(true)
