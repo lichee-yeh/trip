@@ -67,7 +67,8 @@
         <!-- Loading -->
         <div v-if="!firebaseReady" class="absolute inset-0 z-[9999] bg-white flex flex-col items-center justify-center">
             <div class="w-12 h-12 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mb-4"></div>
-            <p class="text-teal-600 font-bold animate-pulse">正在讀取雲端行程...</p>
+            <p class="text-teal-600 font-bold animate-pulse mt-4">正在寫入行程資料...</p>
+            <p class="text-xs text-slate-400 mt-2">第一次載入需要幾秒鐘</p>
         </div>
 
         <!-- Header -->
@@ -109,8 +110,8 @@
                     
                     <div v-if="currentDayEvents.length === 0" class="flex flex-col items-center justify-center py-20 text-slate-300 opacity-60">
                         <i data-lucide="coffee" class="w-12 h-12 mb-3 stroke-1"></i>
-                        <p class="text-sm font-medium">本日尚無行程</p>
-                        <button @click="showEventModal = true" class="mt-4 text-teal-600 text-xs font-bold border border-teal-200 px-4 py-2 rounded-full hover:bg-teal-50">新增第一筆</button>
+                        <p class="text-sm font-medium">資料庫同步中...</p>
+                        <button @click="forceInit" class="mt-4 text-teal-600 text-xs font-bold border border-teal-200 px-4 py-2 rounded-full hover:bg-teal-50">點我重新載入行程</button>
                     </div>
 
                     <div v-for="event in currentDayEvents" :key="event.id" class="group bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex gap-4 relative overflow-hidden transition-all hover:shadow-md">
@@ -239,7 +240,7 @@
 
                 // --- Initial Data (完全依照 Excel 截圖還原，細節全補上) ---
                 const initialItinerary = [
-                    // Day 1: 2/11 (二)
+                    // Day 1: 2/11 (週三)
                     { id: '1-0', date: '2026-02-11', time: '03:15', title: '5J311 飛往馬尼拉', locationName: 'TPE T1 -> MNL T3', type: 'transport', tag: '轉機' },
                     { id: '1-1', date: '2026-02-11', time: '05:45', title: '抵達馬尼拉 T3', locationName: 'MNL T3', type: 'note', tag: '需領行李' },
                     { id: '1-2', date: '2026-02-11', time: '10:50', title: '5J585 飛往宿霧', locationName: 'MNL T3 -> CEB', type: 'transport' },
@@ -249,7 +250,7 @@
                     { id: '1-6', date: '2026-02-11', time: '15:00', title: '午餐 Mall (Kuya J / House of Lechon)', locationName: 'Ayala Center', type: 'food', tag: '推薦' },
                     { id: '1-7', date: '2026-02-11', time: '18:00', title: '夜市 (Sugbo Mercado)', locationName: 'IT Park', type: 'food', tag: '晚餐' },
 
-                    // Day 2: 2/12 (三)
+                    // Day 2: 2/12 (週四)
                     { id: '2-0', date: '2026-02-12', time: '07:30', title: '飯店早餐', locationName: 'Parklane Hotel', type: 'food' },
                     { id: '2-1', date: '2026-02-12', time: '09:00', title: '抵達 Cebu Ocean Park', locationName: 'SM Seaside 旁', type: 'spot', lat: 10.283, lng: 123.882 },
                     { id: '2-2', date: '2026-02-12', time: '10:00', title: 'Grab 移動', locationName: '', type: 'transport' },
@@ -260,7 +261,7 @@
                     { id: '2-7', date: '2026-02-12', time: '15:00', title: '聖佩德羅堡', locationName: 'Fort San Pedro', type: 'spot' },
                     { id: '2-8', date: '2026-02-12', time: '18:00', title: '晚餐 (Texas Roadhouse)', locationName: 'SM Seaside', type: 'food', tag: '推薦' },
 
-                    // Day 3: 2/13 (四)
+                    // Day 3: 2/13 (週五)
                     { id: '3-0', date: '2026-02-13', time: '07:30', title: '飯店早餐', locationName: 'Parklane Hotel', type: 'food' },
                     { id: '3-1', date: '2026-02-13', time: '10:40', title: '抵達港口 Pier 1', locationName: 'Cebu Pier 1', type: 'note', tag: '買午餐' },
                     { id: '3-2', date: '2026-02-13', time: '11:40', title: '搭船 Ocean Jet', locationName: '前往薄荷島', type: 'transport', tag: 'KKDay票' },
@@ -269,7 +270,7 @@
                     { id: '3-5', date: '2026-02-13', time: '16:00', title: '度假村玩', locationName: 'Swimming Pool', type: 'activity' },
                     { id: '3-6', date: '2026-02-13', time: '18:00', title: '海灘夜市或附近餐廳', locationName: 'Giuseppe Pizzeria', type: 'food', tag: '推薦' },
 
-                    // Day 4: 2/14 (五)
+                    // Day 4: 2/14 (週六)
                     { id: '4-0', date: '2026-02-14', time: '07:30', title: '飯店早餐', locationName: 'Best Western', type: 'food' },
                     { id: '4-1', date: '2026-02-14', time: '09:00', title: 'Napaling Reef', locationName: '沙丁魚浮潛', type: 'spot' },
                     { id: '4-2', date: '2026-02-14', time: '11:00', title: 'Hinagdanan Cave', locationName: 'No Swim', type: 'spot' },
@@ -277,7 +278,7 @@
                     { id: '4-4', date: '2026-02-14', time: '14:00', title: '度假村玩', locationName: 'Best Western', type: 'activity' },
                     { id: '4-5', date: '2026-02-14', time: '18:00', title: '海灘夜市或附近餐廳', locationName: 'Mist', type: 'food', tag: '推薦' },
 
-                    // Day 5: 2/15 (六)
+                    // Day 5: 2/15 (週日)
                     { id: '5-0', date: '2026-02-15', time: '05:30', title: '飯店早餐', locationName: 'Best Western', type: 'food', tag: '早起' },
                     { id: '5-1', date: '2026-02-15', time: '06:00', title: '跳島一日遊', locationName: 'Balicasag (海龜)', type: 'spot', tag: '包船1500p' },
                     { id: '5-2', date: '2026-02-15', time: '11:00', title: 'Virgin Island', locationName: '處女島', type: 'spot' },
@@ -285,7 +286,7 @@
                     { id: '5-4', date: '2026-02-15', time: '14:30', title: 'Check in Villa Kalachuchi', locationName: 'Danao 區', type: 'hotel' },
                     { id: '5-5', date: '2026-02-15', time: '18:00', title: '海灘夜市或附近餐廳', locationName: 'Luna Rossa', type: 'food', tag: '推薦' },
 
-                    // Day 6: 2/16 (日)
+                    // Day 6: 2/16 (週一)
                     { id: '6-0', date: '2026-02-16', time: '08:00', title: '無早餐有廚房', locationName: 'Villa Kalachuchi', type: 'note' },
                     { id: '6-1', date: '2026-02-16', time: '09:00', title: '包車一日遊 (6500p)', locationName: 'Bohol 內陸', type: 'transport' },
                     { id: '6-2', date: '2026-02-16', time: '10:00', title: '人造森林 & 眼鏡猴', locationName: 'Bilar / Tarsier', type: 'spot' },
@@ -296,7 +297,7 @@
                     { id: '6-7', date: '2026-02-16', time: '17:00', title: 'Back to villa', locationName: 'Villa Kalachuchi', type: 'transport' },
                     { id: '6-8', date: '2026-02-16', time: '18:00', title: '海灘夜市或附近餐廳', locationName: 'Bohol Bee Farm', type: 'food', tag: '推薦' },
 
-                    // Day 7: 2/17 (一)
+                    // Day 7: 2/17 (週二)
                     { id: '7-0', date: '2026-02-17', time: '08:00', title: '無早餐有廚房', locationName: 'Villa Kalachuchi', type: 'note' },
                     { id: '7-1', date: '2026-02-17', time: '11:00', title: 'Check-out & South Farm', locationName: '動物農場午餐', type: 'spot' },
                     { id: '7-2', date: '2026-02-17', time: '12:00', title: '餵動物騎馬', locationName: 'South Farm', type: 'activity' },
@@ -307,7 +308,7 @@
                     { id: '7-7', date: '2026-02-17', time: '21:00', title: '飯店 Checkin', locationName: 'Uptown Parksuites Tower 2', type: 'hotel' },
                     { id: '7-8', date: '2026-02-17', time: '21:30', title: '晚餐', locationName: 'Shake Shack', type: 'food', tag: '推薦' },
 
-                    // Day 8: 2/18 (二)
+                    // Day 8: 2/18 (週三)
                     { id: '8-0', date: '2026-02-18', time: '09:00', title: '無早餐有廚房', locationName: 'Wildflour Cafe', type: 'food', tag: '推薦' },
                     { id: '8-1', date: '2026-02-18', time: '10:00', title: '逛市區景點', locationName: 'BGC', type: 'activity' },
                     { id: '8-2', date: '2026-02-18', time: '11:00', title: 'Mind Museum', locationName: 'Jose Yao Campos Park', type: 'spot' },
@@ -320,10 +321,14 @@
                 const tabs = [{ id: 'schedule', label: '行程', icon: 'calendar' }, { id: 'map', label: '地圖', icon: 'map' }];
                 
                 const tripDays = [
-                    { date: '2026-02-11', dateShort: '2/11', dayShort: 'Tue', dayName:'週二', dayNum: '11' }, { date: '2026-02-12', dateShort: '2/12', dayShort: 'Wed', dayName:'週三', dayNum: '12' },
-                    { date: '2026-02-13', dateShort: '2/13', dayShort: 'Thu', dayName:'週四', dayNum: '13' }, { date: '2026-02-14', dateShort: '2/14', dayShort: 'Fri', dayName:'週五', dayNum: '14' },
-                    { date: '2026-02-15', dateShort: '2/15', dayShort: 'Sat', dayName:'週六', dayNum: '15' }, { date: '2026-02-16', dateShort: '2/16', dayShort: 'Sun', dayName:'週日', dayNum: '16' },
-                    { date: '2026-02-17', dateShort: '2/17', dayShort: 'Mon', dayName:'週一', dayNum: '17' }, { date: '2026-02-18', dateShort: '2/18', dayShort: 'Tue', dayName:'週二', dayNum: '18' }
+                    { date: '2026-02-11', dateShort: '2/11', dayShort: 'Wed', dayName:'週三', dayNum: '11' }, 
+                    { date: '2026-02-12', dateShort: '2/12', dayShort: 'Thu', dayName:'週四', dayNum: '12' },
+                    { date: '2026-02-13', dateShort: '2/13', dayShort: 'Fri', dayName:'週五', dayNum: '13' }, 
+                    { date: '2026-02-14', dateShort: '2/14', dayShort: 'Sat', dayName:'週六', dayNum: '14' },
+                    { date: '2026-02-15', dateShort: '2/15', dayShort: 'Sun', dayName:'週日', dayNum: '15' }, 
+                    { date: '2026-02-16', dateShort: '2/16', dayShort: 'Mon', dayName:'週一', dayNum: '16' },
+                    { date: '2026-02-17', dateShort: '2/17', dayShort: 'Tue', dayName:'週二', dayNum: '17' }, 
+                    { date: '2026-02-18', dateShort: '2/18', dayShort: 'Wed', dayName:'週三', dayNum: '18' }
                 ];
 
                 const currentTab = ref('schedule');
@@ -339,28 +344,36 @@
                     const { collection, onSnapshot, query, orderBy, addDoc, getDocs } = fireOps.value;
                     const db = dbInstance.value;
 
-                    // --- First time check: Populate data if empty ---
-                    const evColl = collection(db, "events");
+                    // 使用新的集合名稱以確保資料重新寫入
+                    const collectionName = "remi_trip_2026_final";
+                    const evColl = collection(db, collectionName);
                     const snapshotCheck = await getDocs(evColl);
+                    
                     if (snapshotCheck.empty) {
                         console.log("Empty DB, populating initial itinerary...");
-                        for (const item of initialItinerary) {
-                            await addDoc(evColl, item);
-                        }
+                        // 批次寫入資料
+                        const promises = initialItinerary.map(item => addDoc(evColl, item));
+                        await Promise.all(promises);
+                        console.log("Data populated!");
                     }
 
                     // Listen to Itinerary
-                    const qItinerary = query(collection(db, "events")); 
+                    const qItinerary = query(collection(db, collectionName)); 
                     onSnapshot(qItinerary, (snapshot) => {
                         itinerary.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                         fetchWeather(); 
                         if (currentTab.value === 'map') updateMapMarkers();
                     });
                 };
+                
+                const forceInit = async () => {
+                    window.location.reload();
+                };
 
                 const saveEvent = async () => {
                     const { addDoc, collection } = fireOps.value;
-                    await addDoc(collection(dbInstance.value, "events"), {
+                    const collectionName = "remi_trip_2026_final";
+                    await addDoc(collection(dbInstance.value, collectionName), {
                         ...formEvent.value,
                         date: tripDays[currentDateIndex.value].date,
                         weather: null,
@@ -372,7 +385,8 @@
                 const deleteEvent = async (id) => {
                     if(!confirm('確定刪除？')) return;
                     const { deleteDoc, doc } = fireOps.value;
-                    await deleteDoc(doc(dbInstance.value, "events", id));
+                    const collectionName = "remi_trip_2026_final";
+                    await deleteDoc(doc(dbInstance.value, collectionName, id));
                 };
 
                 const initMap = () => {
@@ -466,7 +480,7 @@
                     firebaseReady, tabs, currentTab, switchTab, tripDays, currentDateIndex, changeDate, hasEvent,
                     currentDayEvents,
                     showEventModal, formEvent,
-                    saveEvent, deleteEvent,
+                    saveEvent, deleteEvent, forceInit,
                     getWeatherIcon, getTypeName, getTypeStyle, getTypeColor, openMapForEvent, locateUser, fitBounds
                 };
             }
