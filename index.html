@@ -1,9 +1,10 @@
+<!-- Version: v17.0 (2026 Remi Trip Final - Map Fixed & Dynamic Header) -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Remi's Family Trip</title>
+    <title>Remi's 2026 Trip</title>
     
     <!-- 核心庫 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -35,9 +36,10 @@
             const db = getFirestore(app);
             window.db = db;
             window.fireOps = { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch };
-            setTimeout(() => window.dispatchEvent(new Event('firebase-ready')), 500);
+            // 延遲發送 Ready 事件
+            setTimeout(() => window.dispatchEvent(new Event('firebase-ready')), 800);
         } catch (e) {
-            console.log("Firebase init error (Offline mode active)");
+            console.log("Firebase init error (Offline mode)");
         }
     </script>
 
@@ -46,8 +48,8 @@
             theme: {
                 extend: {
                     colors: { 
-                        primary: '#0D9488', // Teal-600
-                        secondary: '#F59E0B', // Amber-500
+                        primary: '#0D9488', 
+                        secondary: '#F59E0B', 
                         bg: '#F8FAFC', 
                     },
                     fontFamily: { 
@@ -78,17 +80,17 @@
         /* 樣式優化 */
         .date-btn-active { background-color: #0D9488; color: white; transform: scale(1.05); box-shadow: 0 4px 10px rgba(13, 148, 136, 0.3); border: none;}
         .date-btn-inactive { background-color: white; color: #94A3B8; border: 1px solid #E2E8F0; }
-        .boarding-pass { background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%); color: white; position: relative; border-radius: 16px; }
         
         /* Header 圖片背景 */
         .header-bg {
             position: relative;
             height: 280px;
             overflow: hidden;
-            border-bottom-left-radius: 30px;
-            border-bottom-right-radius: 30px;
-            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.2);
+            border-bottom-left-radius: 35px;
+            border-bottom-right-radius: 35px;
+            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.2);
             z-index: 10;
+            background-color: #334155; /* Fallback color */
         }
         .header-image {
             width: 100%; height: 100%; object-fit: cover;
@@ -97,7 +99,7 @@
         }
         .header-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.6) 100%);
+            background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.6) 100%);
         }
         
         /* 行程卡片 */
@@ -108,14 +110,15 @@
             position: relative; z-index: 10;
         }
 
-        /* 地圖容器 */
+        /* 地圖容器 - 強制全螢幕 */
         #map-container {
             width: 100%;
             height: 100%;
             position: absolute;
             top: 0;
             left: 0;
-            z-index: 0;
+            z-index: 1;
+            background-color: #e5e7eb; /* 灰色背景 */
         }
 
         /* 地圖標記樣式 */
@@ -123,10 +126,10 @@
             background: #0D9488;
             color: white;
             border-radius: 50%;
-            border: 2px solid white;
+            border: 3px solid white;
             display: flex; align-items: center; justify-content: center;
             font-weight: bold; font-size: 14px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
 
         /* 彈窗動畫 */
@@ -141,12 +144,13 @@
         <!-- Header (只在行程頁顯示) -->
         <div v-show="currentTab === 'schedule'" class="header-bg shrink-0 relative">
             <div class="absolute inset-0 bg-slate-800">
+                <!-- 動態圖片綁定 -->
                 <img :src="currentHeaderImage" class="header-image opacity-90">
             </div>
             <div class="header-overlay"></div>
             
             <div class="absolute top-12 left-6 text-white">
-                <h1 class="text-2xl font-black tracking-wide drop-shadow-md">Remi's Family Trip</h1>
+                <h1 class="text-2xl font-black tracking-wide drop-shadow-md">Remi Family Trip</h1>
                 <p class="text-sm opacity-90 font-medium mt-1 flex items-center gap-1">
                     <i data-lucide="map-pin" class="w-4 h-4"></i> {{ tripDays[currentDateIndex].location }}
                 </p>
@@ -278,7 +282,7 @@
                     <button @click="locateUser" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-teal-600 hover:bg-teal-50 border border-slate-100"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
                     <button @click="fitBounds" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:bg-slate-50 border border-slate-100"><i data-lucide="maximize" class="w-6 h-6"></i></button>
                 </div>
-                <div class="absolute top-4 left-4 right-4 bg-white/90 backdrop-blur rounded-xl p-3 shadow-lg z-[400] border border-white/50 text-center">
+                <div class="absolute top-4 left-4 right-4 bg-white/90 backdrop-blur rounded-xl p-3 shadow-lg z-[400] border border-white/50 text-center pointer-events-none">
                      <p class="text-xs text-slate-500">顯示行程：<span class="font-bold text-teal-600">{{ tripDays[currentDateIndex].dateShort }}</span></p>
                 </div>
             </div>
@@ -597,9 +601,8 @@
                 // --- Init ---
                 onMounted(() => {
                     lucide.createIcons();
-                    // Try to fetch latest from Firebase to update local view, but init with local
                     window.addEventListener('firebase-ready', () => {
-                        const { collection, onSnapshot, query, orderBy } = window.fireOps;
+                        const { collection, onSnapshot, query } = window.fireOps;
                         const db = window.db;
                         const q = query(collection(db, 'events_v12'));
                         
