@@ -15,12 +15,11 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- Firebase 設定 (已整合您的截圖資訊) -->
+    <!-- Firebase 設定 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         
-        // ▼▼▼ 您的專屬鑰匙 (已填入) ▼▼▼
         const firebaseConfig = {
             apiKey: "AIzaSyA1JHrkPbANS-g7X8OudpD0w819ZXA8-7A",
             authDomain: "family-trip-2026-1c43d.firebaseapp.com",
@@ -65,10 +64,10 @@
 
     <div id="app" class="flex flex-col h-full max-w-md mx-auto bg-slate-50 relative shadow-2xl">
 
-        <!-- Loading Screen -->
+        <!-- Loading -->
         <div v-if="!firebaseReady" class="absolute inset-0 z-[9999] bg-white flex flex-col items-center justify-center">
             <div class="w-12 h-12 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mb-4"></div>
-            <p class="text-teal-600 font-bold animate-pulse">正在連線雲端行程...</p>
+            <p class="text-teal-600 font-bold animate-pulse">正在讀取雲端行程...</p>
         </div>
 
         <!-- Header -->
@@ -82,15 +81,15 @@
                             <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                         </span>
                     </div>
-                    <p class="text-xs text-slate-400 mt-0.5">4大1小1老 • 宿霧薄荷島</p>
+                    <p class="text-xs text-slate-400 mt-0.5">6大1小 • 宿霧薄荷島</p>
                 </div>
                 <div class="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-lg border border-teal-100 shadow-sm">
                     👧🏻
                 </div>
             </div>
 
-            <!-- 日期滑動列 -->
-            <div v-if="currentTab !== 'money'" class="flex space-x-3 overflow-x-auto hide-scrollbar pb-1">
+            <!-- Date Scroller -->
+            <div class="flex space-x-3 overflow-x-auto hide-scrollbar pb-1">
                 <button v-for="(day, index) in tripDays" :key="index" @click="changeDate(index)"
                     class="flex-shrink-0 flex flex-col items-center justify-center w-14 h-16 rounded-2xl transition-all duration-300 border relative overflow-hidden snap-start"
                     :class="currentDateIndex === index ? 'bg-teal-500 text-white shadow-float border-teal-500 transform scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-teal-200'">
@@ -104,38 +103,36 @@
         <!-- Main Content -->
         <main class="flex-1 overflow-y-auto relative bg-slate-50 hide-scrollbar scroll-smooth">
             
-            <!-- Tab 1: 行程表 -->
+            <!-- Tab 1: Schedule -->
             <transition name="fade">
                 <div v-if="currentTab === 'schedule'" class="px-4 py-6 space-y-5 pb-24">
                     
-                    <!-- Empty State -->
                     <div v-if="currentDayEvents.length === 0" class="flex flex-col items-center justify-center py-20 text-slate-300 opacity-60">
                         <i data-lucide="coffee" class="w-12 h-12 mb-3 stroke-1"></i>
                         <p class="text-sm font-medium">本日尚無行程</p>
                         <button @click="showEventModal = true" class="mt-4 text-teal-600 text-xs font-bold border border-teal-200 px-4 py-2 rounded-full hover:bg-teal-50">新增第一筆</button>
                     </div>
 
-                    <!-- Event Cards -->
                     <div v-for="event in currentDayEvents" :key="event.id" class="group bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex gap-4 relative overflow-hidden transition-all hover:shadow-md">
                         
-                        <!-- Side Decoration -->
+                        <!-- Side Color -->
                         <div class="absolute left-0 top-0 bottom-0 w-1 transition-colors" 
-                             :class="event.type === 'food' ? 'bg-orange-400' : event.type === 'transport' ? 'bg-blue-400' : 'bg-teal-400'"></div>
+                             :class="getTypeColor(event.type)"></div>
                         
-                        <!-- Time Column -->
+                        <!-- Time -->
                         <div class="flex flex-col items-center min-w-[3.5rem] pt-0.5 border-r border-slate-50 pr-3">
                             <span class="text-lg font-bold text-slate-700 font-sans tracking-tight">{{ event.time }}</span>
+                            <!-- Weather or Icon -->
                             <div v-if="event.weather" class="mt-2 text-xs flex flex-col items-center text-amber-500 bg-amber-50 px-1 py-0.5 rounded">
                                 <i :data-lucide="getWeatherIcon(event.weather.code)" class="w-3 h-3 mb-0.5"></i>
                                 <span class="scale-90 font-bold">{{ event.weather.temp }}°</span>
                             </div>
                         </div>
 
-                        <!-- Content Column -->
+                        <!-- Content -->
                         <div class="flex-1 min-w-0">
                             <div class="flex justify-between items-start">
                                 <h3 class="font-bold text-slate-800 text-base leading-tight truncate pr-2">{{ event.title }}</h3>
-                                <!-- Actions -->
                                 <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button @click="openMapForEvent(event)" class="text-slate-300 hover:text-teal-500"><i data-lucide="map" class="w-4 h-4"></i></button>
                                     <button @click="deleteEvent(event.id)" class="text-slate-300 hover:text-red-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
@@ -146,68 +143,26 @@
                                 <i data-lucide="map-pin" class="w-3 h-3 mr-1"></i> {{ event.locationName }}
                             </p>
                             
-                            <!-- Tags -->
-                            <div class="mt-3 flex gap-2">
+                            <!-- Tags & Info -->
+                            <div class="mt-3 flex flex-wrap gap-2">
                                 <span class="px-2 py-0.5 rounded-md text-[10px] font-bold border"
-                                    :class="event.type === 'food' ? 'bg-orange-50 text-orange-600 border-orange-100' : 
-                                            event.type === 'transport' ? 'bg-blue-50 text-blue-600 border-blue-100' : 
-                                            'bg-teal-50 text-teal-600 border-teal-100'">
+                                    :class="getTypeStyle(event.type)">
                                     {{ getTypeName(event.type) }}
                                 </span>
                                 <span v-if="event.tag" class="px-2 py-0.5 bg-slate-50 text-slate-500 rounded-md text-[10px] border border-slate-100 flex items-center">
                                     <i data-lucide="star" class="w-2 h-2 mr-1 text-orange-400 fill-orange-400"></i> {{ event.tag }}
                                 </span>
+                                <!-- Alert Tag for Notes -->
+                                <span v-if="event.type === 'note'" class="px-2 py-0.5 bg-red-50 text-red-500 rounded-md text-[10px] border border-red-100 flex items-center">
+                                    <i data-lucide="alert-circle" class="w-2 h-2 mr-1"></i> 重要
+                                </span>
                             </div>
                         </div>
                     </div>
                 </div>
             </transition>
 
-            <!-- Tab 2: 分帳 -->
-            <transition name="fade">
-                <div v-if="currentTab === 'money'" class="px-4 py-6 space-y-6 pb-24">
-                    <!-- Total Card -->
-                    <div class="bg-gradient-to-br from-teal-500 to-emerald-600 rounded-3xl p-6 text-white shadow-float relative overflow-hidden">
-                        <div class="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-                        <div class="flex justify-between items-end mb-2">
-                            <span class="text-teal-50 text-xs font-medium uppercase tracking-wider">Total Expenses</span>
-                            <button @click="showRateModal=true" class="text-[10px] bg-white/20 px-2 py-1 rounded hover:bg-white/30 transition">匯率 {{exchangeRate}}</button>
-                        </div>
-                        <div class="text-4xl font-bold tracking-tight">
-                            <span class="text-xl opacity-80 mr-1">NT$</span>{{ formatNumber(totalExpenseTwd) }}
-                        </div>
-                        <div class="pt-5 mt-2 border-t border-white/10 grid grid-cols-2 gap-3">
-                            <div v-for="(bal, name) in balances" :key="name" class="flex justify-between items-center bg-black/10 rounded-lg px-3 py-2">
-                                <span class="text-xs font-bold opacity-90">{{ name }}</span>
-                                <span class="text-xs font-bold" :class="bal >= 0 ? 'text-teal-100' : 'text-rose-200'">{{ bal >= 0 ? '+' : '' }}{{ formatNumber(bal) }}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- List -->
-                    <div class="space-y-3">
-                        <div class="flex justify-between items-center px-1">
-                            <h3 class="font-bold text-slate-700 text-sm">消費明細</h3>
-                            <button @click="showExpenseModal = true" class="flex items-center text-xs bg-white border border-slate-200 px-3 py-1.5 rounded-full text-slate-600 shadow-sm hover:bg-slate-50"><i data-lucide="plus" class="w-3 h-3 mr-1"></i> 記一筆</button>
-                        </div>
-                        <div v-for="ex in expenses" :key="ex.id" class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
-                            <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-lg border border-slate-100">{{ getAvatar(ex.payer) }}</div>
-                                <div>
-                                    <div class="font-bold text-slate-700 text-sm">{{ ex.item }}</div>
-                                    <div class="text-[10px] text-slate-400 mt-0.5 font-medium">{{ ex.payer }} • {{ ex.currency }} {{ formatNumber(ex.amount) }}</div>
-                                </div>
-                            </div>
-                            <div class="text-right">
-                                <div class="font-bold text-slate-700 text-sm">NT$ {{ formatNumber(Math.round(ex.amount * (ex.currency === 'PHP' ? exchangeRate : 1))) }}</div>
-                                <button @click="deleteExpense(ex.id)" class="text-[10px] text-red-300 hover:text-red-500 mt-1">刪除</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </transition>
-
-            <!-- Tab 3: 地圖 -->
+            <!-- Tab 3: Map -->
             <div v-show="currentTab === 'map'" class="h-full w-full relative">
                 <div id="map-container"></div>
                 <div class="absolute bottom-24 right-4 flex flex-col gap-2 z-[400]">
@@ -226,7 +181,7 @@
         </button>
 
         <!-- Bottom Navigation -->
-        <nav class="bg-white border-t border-slate-100 pb-8 pt-3 px-6 flex justify-between items-center z-50">
+        <nav class="bg-white border-t border-slate-100 pb-8 pt-3 px-6 flex justify-around items-center z-50">
             <button v-for="tab in tabs" :key="tab.id" @click="switchTab(tab.id)" class="flex flex-col items-center gap-1 w-16 transition-all duration-300 relative" :class="currentTab === tab.id ? 'text-teal-600 -translate-y-1' : 'text-slate-300 hover:text-slate-400'">
                 <div class="relative">
                     <i :data-lucide="tab.icon" class="w-6 h-6" :class="currentTab === tab.id ? 'fill-teal-50' : ''"></i>
@@ -236,9 +191,7 @@
             </button>
         </nav>
 
-        <!-- Modals -->
-        
-        <!-- Add Event Modal -->
+        <!-- Event Modal -->
         <div v-if="showEventModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
             <div class="bg-white w-full max-w-md p-6 rounded-t-3xl sm:rounded-3xl animate-slide-up shadow-2xl">
                 <div class="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-6"></div>
@@ -251,14 +204,15 @@
                             <option value="food">🍽️ 餐廳</option>
                             <option value="transport">🚗 交通</option>
                             <option value="hotel">🏨 住宿</option>
+                            <option value="note">⚠️ 備註</option>
                         </select>
                     </div>
-                    <input v-model="formEvent.title" placeholder="標題 (例: Ubeco 午餐)" class="input-field">
+                    <input v-model="formEvent.title" placeholder="標題" class="input-field">
                     <input v-model="formEvent.locationName" placeholder="地點名稱" class="input-field">
                     <input v-model="formEvent.tag" placeholder="標籤 (例: 4.8⭐)" class="input-field">
                     
                     <div class="pt-2">
-                        <p class="text-xs text-slate-400 mb-2">座標 (用於地圖定位，可選填)</p>
+                        <p class="text-xs text-slate-400 mb-2">座標 (選填)</p>
                         <div class="grid grid-cols-2 gap-2">
                             <input v-model.number="formEvent.lat" placeholder="緯度 Lat" class="input-field text-xs">
                             <input v-model.number="formEvent.lng" placeholder="經度 Lng" class="input-field text-xs">
@@ -268,47 +222,6 @@
                 <div class="flex gap-3 mt-6">
                     <button @click="showEventModal = false" class="flex-1 py-3 text-slate-400 font-bold text-sm rounded-xl hover:bg-slate-50 transition">取消</button>
                     <button @click="saveEvent" class="flex-1 bg-teal-600 text-white rounded-xl py-3 font-bold shadow-lg shadow-teal-200 active:scale-95 transition">儲存</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Add Expense Modal -->
-        <div v-if="showExpenseModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div class="bg-white w-full max-w-md p-6 rounded-t-3xl sm:rounded-3xl animate-slide-up shadow-2xl">
-                <div class="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-6"></div>
-                <h3 class="text-lg font-bold text-teal-900 mb-4">記一筆</h3>
-                <div class="flex bg-slate-100 p-1 rounded-xl mb-4">
-                    <button @click="formExpense.currency = 'TWD'" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all" :class="formExpense.currency === 'TWD' ? 'bg-white shadow-sm text-teal-600' : 'text-slate-400'">TWD (台幣)</button>
-                    <button @click="formExpense.currency = 'PHP'" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all" :class="formExpense.currency === 'PHP' ? 'bg-white shadow-sm text-teal-600' : 'text-slate-400'">PHP (披索)</button>
-                </div>
-                <div class="space-y-3">
-                    <input v-model="formExpense.item" placeholder="項目 (例: Grab)" class="input-field">
-                    <div class="relative">
-                        <span class="absolute left-4 top-3.5 text-slate-400 font-bold text-sm">{{ formExpense.currency === 'TWD' ? '$' : '₱' }}</span>
-                        <input v-model.number="formExpense.amount" type="number" placeholder="金額" class="input-field pl-8 font-bold text-lg text-slate-700">
-                    </div>
-                    <div v-if="formExpense.currency === 'PHP'" class="text-xs text-right text-teal-500 font-medium px-1">≈ NT$ {{ Math.round(formExpense.amount * exchangeRate) }}</div>
-                    
-                    <div class="text-xs text-slate-400 mb-2 ml-1 mt-4">誰先墊的錢？</div>
-                    <div class="grid grid-cols-4 gap-2">
-                        <button v-for="m in members" :key="m" @click="formExpense.payer = m" class="py-2 rounded-xl text-xs font-bold border transition-all" :class="formExpense.payer === m ? 'bg-teal-50 border-teal-400 text-teal-700' : 'bg-white border-slate-100 text-slate-400'">{{ m }}</button>
-                    </div>
-                </div>
-                <div class="flex gap-3 mt-6">
-                    <button @click="showExpenseModal = false" class="flex-1 py-3 text-slate-400 font-bold text-sm rounded-xl hover:bg-slate-50 transition">取消</button>
-                    <button @click="saveExpense" class="flex-1 bg-teal-600 text-white rounded-xl py-3 font-bold shadow-lg shadow-teal-200 active:scale-95 transition">儲存</button>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Rate Modal -->
-        <div v-if="showRateModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[1000] flex items-center justify-center p-6">
-            <div class="bg-white w-full max-w-xs p-6 rounded-3xl shadow-2xl">
-                <h3 class="text-center font-bold text-slate-700 mb-4">設定 PHP 匯率</h3>
-                <input v-model.number="exchangeRate" type="number" step="0.01" class="input-field text-center text-3xl font-bold text-teal-600 mb-6 py-4">
-                <div class="flex gap-2">
-                     <button @click="showRateModal = false" class="flex-1 py-3 text-slate-400 font-bold text-sm">取消</button>
-                     <button @click="saveRate" class="flex-1 bg-slate-800 text-white rounded-xl py-3 font-bold">更新</button>
                 </div>
             </div>
         </div>
@@ -324,43 +237,70 @@
                 const dbInstance = ref(null);
                 const fireOps = ref(null);
 
-                // --- Initial Data (The "Normal" Itinerary) ---
+                // --- Initial Data (整合了 PDF 與圖片的詳細行程) ---
                 const initialItinerary = [
-                    // Day 1: 2/11
-                    { id: 'init-1', date: '2026-02-11', time: '12:15', title: '抵達宿霧 CEB', locationName: 'Mactan Airport', type: 'transport', lat: 10.308, lng: 123.979 },
-                    { id: 'init-2', date: '2026-02-11', time: '15:00', title: 'Abaca Baking 午餐', locationName: 'Ayala Center', type: 'food', tag: '4.4⭐', lat: 10.317, lng: 123.905 },
-                    { id: 'init-3', date: '2026-02-11', time: '18:30', title: 'The Pyramid 晚餐', locationName: 'IT Park', type: 'food', tag: '4.0⭐', lat: 10.329, lng: 123.905 },
-                    // Day 2: 2/12
-                    { id: 'init-4', date: '2026-02-12', time: '09:00', title: 'Ocean Park', locationName: 'SM Seaside Area', type: 'spot', lat: 10.283, lng: 123.882 },
-                    { id: 'init-5', date: '2026-02-12', time: '12:00', title: 'Aqua Dining', locationName: '海底隧道旁', type: 'food', tag: '需預約' },
-                    { id: 'init-6', date: '2026-02-12', time: '18:00', title: 'Texas Roadhouse', locationName: 'SM Seaside', type: 'food', tag: '4.8⭐', lat: 10.282, lng: 123.881 },
-                    // Day 3: 2/13
-                    { id: 'init-7', date: '2026-02-13', time: '11:40', title: '搭船 Ocean Jet', locationName: 'Cebu Pier 1', type: 'transport' },
-                    { id: 'init-8', date: '2026-02-13', time: '15:00', title: 'Check-in', locationName: 'Best Western Alona', type: 'hotel', lat: 9.546, lng: 123.774 },
-                    { id: 'init-9', date: '2026-02-13', time: '18:00', title: 'Giuseppe Pizzeria', locationName: 'Alona Beach Rd', type: 'food', tag: '4.3⭐', lat: 9.549, lng: 123.775 },
-                    // Day 4: 2/14
-                    { id: 'init-10', date: '2026-02-14', time: '09:00', title: 'Napaling Reef', locationName: '沙丁魚風暴', type: 'spot', lat: 9.605, lng: 123.770 },
-                    { id: 'init-11', date: '2026-02-14', time: '11:30', title: 'Ubeco 網美午餐', locationName: 'Panglao (近景點)', type: 'food', tag: '🏆首選', lat: 9.6056, lng: 123.7742 },
-                    { id: 'init-12', date: '2026-02-14', time: '13:30', title: 'Zipline / ATV', locationName: 'Bohol', type: 'spot' },
-                    { id: 'init-13', date: '2026-02-14', time: '18:00', title: 'Mist 森林系晚餐', locationName: 'Danao/Alona', type: 'food', tag: '需訂位', lat: 9.554, lng: 123.766 },
-                    // Day 5: 2/15
-                    { id: 'init-14', date: '2026-02-15', time: '06:00', title: '出海追海豚', locationName: 'Balicasag', type: 'spot', lat: 9.518, lng: 123.680 },
-                    { id: 'init-15', date: '2026-02-15', time: '15:00', title: '換飯店', locationName: 'Villa Kalachuchi', type: 'hotel', lat: 9.556, lng: 123.760 },
-                    { id: 'init-16', date: '2026-02-15', time: '18:00', title: 'Luna Rossa', locationName: '素食義大利菜', type: 'food', tag: '清爽', lat: 9.553, lng: 123.762 },
-                    // Day 6: 2/16
-                    { id: 'init-17', date: '2026-02-16', time: '09:00', title: '巧克力山', locationName: 'Chocolate Hills', type: 'spot', lat: 9.829, lng: 124.139 },
-                    { id: 'init-18', date: '2026-02-16', time: '18:00', title: 'Bohol Bee Farm', locationName: '懸崖海景', type: 'food', tag: '有機', lat: 9.576, lng: 123.821 },
-                    // Day 7: 2/17
-                    { id: 'init-19', date: '2026-02-17', time: '13:00', title: '搭船回宿霧', locationName: 'Tagbilaran Port', type: 'transport' },
-                    { id: 'init-20', date: '2026-02-17', time: '18:35', title: '飛往馬尼拉', locationName: 'CEB -> MNL', type: 'transport' },
-                    { id: 'init-21', date: '2026-02-17', time: '20:30', title: 'Shake Shack', locationName: 'BGC', type: 'food', tag: '簡單吃', lat: 14.550, lng: 121.050 },
-                    // Day 8: 2/18
-                    { id: 'init-22', date: '2026-02-18', time: '10:00', title: 'Mind Museum', locationName: 'BGC', type: 'spot', lat: 14.551, lng: 121.045 },
-                    { id: 'init-23', date: '2026-02-18', time: '12:00', title: 'Mamou Meats', locationName: 'Uptown', type: 'food', tag: '🏆5.0⭐', lat: 14.557, lng: 121.054 },
+                    // Day 1: 2/11 (二)
+                    { id: '1-0', date: '2026-02-11', time: '03:15', title: '5J311 飛往馬尼拉', locationName: 'TPE T1 -> MNL T3', type: 'transport', tag: '轉機' },
+                    { id: '1-1', date: '2026-02-11', time: '05:45', title: '抵達馬尼拉 T3', locationName: 'MNL T3', type: 'note', tag: '需領行李' },
+                    { id: '1-2', date: '2026-02-11', time: '10:50', title: '5J585 飛往宿霧', locationName: 'MNL T3 -> CEB', type: 'transport' },
+                    { id: '1-3', date: '2026-02-11', time: '12:25', title: '抵達宿霧', locationName: 'Mactan Airport', type: 'transport' },
+                    { id: '1-4', date: '2026-02-11', time: '13:00', title: '前往飯店 Check-in', locationName: '宿務派克蘭國際大飯店', type: 'hotel', tag: '含早', lat: 10.317, lng: 123.903 },
+                    { id: '1-5', date: '2026-02-11', time: '14:00', title: '換匯 & 午餐', locationName: 'Ayala Center', type: 'food', tag: 'Abaca' },
+                    { id: '1-6', date: '2026-02-11', time: '18:00', title: '晚餐: The Pyramid', locationName: 'IT Park', type: 'food', tag: '氣氛佳' },
+
+                    // Day 2: 2/12 (三)
+                    { id: '2-1', date: '2026-02-12', time: '09:00', title: 'Cebu Ocean Park', locationName: 'SM Seaside 旁', type: 'spot', lat: 10.283, lng: 123.882 },
+                    { id: '2-2', date: '2026-02-12', time: '12:00', title: 'Aqua Dining 午餐', locationName: '海底隧道旁', type: 'food', tag: '網美餐' },
+                    { id: '2-3', date: '2026-02-12', time: '14:00', title: '古蹟巡禮', locationName: '麥哲倫十字架/聖嬰大教堂', type: 'spot' },
+                    { id: '2-4', date: '2026-02-12', time: '18:00', title: '晚餐: Texas Roadhouse', locationName: 'SM Seaside', type: 'food', tag: '牛排推薦' },
+
+                    // Day 3: 2/13 (四)
+                    { id: '3-1', date: '2026-02-13', time: '10:40', title: '抵達港口 Pier 1', locationName: 'Cebu Pier 1', type: 'note', tag: '買午餐' },
+                    { id: '3-2', date: '2026-02-13', time: '11:40', title: 'Ocean Jet 開船', locationName: '前往薄荷島', type: 'transport', tag: 'KKDay票' },
+                    { id: '3-3', date: '2026-02-13', time: '14:00', title: '抵達 Tagbilaran', locationName: 'Bohol', type: 'transport', tag: '包車接送' },
+                    { id: '3-4', date: '2026-02-13', time: '15:00', title: 'Check-in 邦勞飯店', locationName: 'Best Western Plus (Alona)', type: 'hotel', tag: '含早' },
+                    { id: '3-5', date: '2026-02-13', time: '18:00', title: '晚餐: Giuseppe Pizzeria', locationName: 'Alona Beach Rd', type: 'food', tag: '4.3⭐' },
+
+                    // Day 4: 2/14 (五)
+                    { id: '4-1', date: '2026-02-14', time: '09:00', title: 'Napaling Reef', locationName: '沙丁魚風暴 (水下攝影)', type: 'spot' },
+                    { id: '4-2', date: '2026-02-14', time: '11:00', title: 'Hinagdanan Cave', locationName: '鐘乳石洞 (不游泳)', type: 'spot' },
+                    { id: '4-3', date: '2026-02-14', time: '12:00', title: '午餐: Ubeco', locationName: '韓系網美店', type: 'food', tag: '首選' },
+                    { id: '4-4', date: '2026-02-14', time: '14:00', title: '度假村休息', locationName: 'Best Western', type: 'spot' },
+                    { id: '4-5', date: '2026-02-14', time: '18:00', title: '晚餐: Mist', locationName: '森林系餐廳', type: 'food', tag: '需訂位' },
+
+                    // Day 5: 2/15 (六)
+                    { id: '5-1', date: '2026-02-15', time: '06:00', title: '跳島一日遊', locationName: 'Balicasag (海龜/斷層)', type: 'spot', tag: '包船' },
+                    { id: '5-2', date: '2026-02-15', time: '11:00', title: 'Virgin Island', locationName: '處女島', type: 'spot' },
+                    { id: '5-3', date: '2026-02-15', time: '14:30', title: '換飯店: Villa Kalachuchi', locationName: 'Danao 區', type: 'hotel', tag: '無早' },
+                    { id: '5-4', date: '2026-02-15', time: '18:00', title: '晚餐: Luna Rossa', locationName: '素食義大利菜', type: 'food' },
+
+                    // Day 6: 2/16 (日)
+                    { id: '6-1', date: '2026-02-16', time: '09:00', title: '陸上包車遊', locationName: 'Bohol 內陸', type: 'transport', tag: '包車' },
+                    { id: '6-2', date: '2026-02-16', time: '10:00', title: '人造森林 & 眼鏡猴', locationName: 'Tarsier Area', type: 'spot' },
+                    { id: '6-3', date: '2026-02-16', time: '12:00', title: 'Rio Verde 午餐', locationName: '漂流竹筏', type: 'food' },
+                    { id: '6-4', date: '2026-02-16', time: '14:00', title: '巧克力山', locationName: 'Chocolate Hills', type: 'spot' },
+                    { id: '6-5', date: '2026-02-16', time: '15:30', title: 'Zipline & ATV', locationName: 'Loboc / Graham', type: 'spot' },
+                    { id: '6-6', date: '2026-02-16', time: '18:00', title: '晚餐: Bohol Bee Farm', locationName: '海景懸崖', type: 'food', tag: '冰淇淋' },
+
+                    // Day 7: 2/17 (一)
+                    { id: '7-1', date: '2026-02-17', time: '11:00', title: 'South Farm', locationName: '動物農場', type: 'spot' },
+                    { id: '7-2', date: '2026-02-17', time: '15:30', title: '前往邦勞機場', locationName: 'Panglao Airport', type: 'transport' },
+                    { id: '7-3', date: '2026-02-17', time: '18:20', title: '5J616 飛往馬尼拉', locationName: 'TAG -> MNL', type: 'transport' },
+                    { id: '7-4', date: '2026-02-17', time: '20:00', title: '抵達馬尼拉', locationName: 'MNL T3', type: 'transport', tag: 'Grab Car' },
+                    { id: '7-5', date: '2026-02-17', time: '21:00', title: '入住 Uptown Parksuites', locationName: 'BGC (三越旁)', type: 'hotel' },
+                    { id: '7-6', date: '2026-02-17', time: '21:30', title: '晚餐: Shake Shack', locationName: '簡單吃', type: 'food' },
+
+                    // Day 8: 2/18 (二)
+                    { id: '8-1', date: '2026-02-18', time: '10:00', title: 'Mind Museum', locationName: 'BGC', type: 'spot', tag: '科學館' },
+                    { id: '8-2', date: '2026-02-18', time: '12:00', title: '午餐: Mamou Meats', locationName: 'Uptown', type: 'food', tag: '5.0⭐' },
+                    { id: '8-3', date: '2026-02-18', time: '15:00', title: '前往機場', locationName: 'MNL T3', type: 'transport' },
+                    { id: '8-4', date: '2026-02-18', time: '23:35', title: '5J310 返台', locationName: 'MNL -> TPE', type: 'transport' }
                 ];
 
-                const tabs = [{ id: 'schedule', label: '行程', icon: 'calendar' }, { id: 'money', label: '分帳', icon: 'wallet' }, { id: 'map', label: '地圖', icon: 'map' }];
-                const members = ['爸爸', '媽媽', '阿嬤', 'Remi'];
+                const tabs = [{ id: 'schedule', label: '行程', icon: 'calendar' }, { id: 'map', label: '地圖', icon: 'map' }];
+                // 註：這行僅供參考，若未來需要住宿分配可以使用
+                // const members = ['爸爸', '媽媽', '爺爺', '奶奶', '阿伯', '伯母', 'Remi'];
+                
                 const tripDays = [
                     { date: '2026-02-11', dateShort: '2/11', dayShort: 'Tue', dayName:'週二', dayNum: '11' }, { date: '2026-02-12', dateShort: '2/12', dayShort: 'Wed', dayName:'週三', dayNum: '12' },
                     { date: '2026-02-13', dateShort: '2/13', dayShort: 'Thu', dayName:'週四', dayNum: '13' }, { date: '2026-02-14', dateShort: '2/14', dayShort: 'Fri', dayName:'週五', dayNum: '14' },
@@ -371,14 +311,9 @@
                 const currentTab = ref('schedule');
                 const currentDateIndex = ref(0);
                 const showEventModal = ref(false);
-                const showExpenseModal = ref(false);
-                const showRateModal = ref(false);
-                const exchangeRate = ref(0.56);
                 const itinerary = ref([]);
-                const expenses = ref([]);
 
                 const formEvent = ref({ time: '12:00', title: '', locationName: '', type: 'food', tag: '', lat: null, lng: null });
-                const formExpense = ref({ item: '', amount: '', currency: 'PHP', payer: '爸爸' });
 
                 let map = null, markersLayer = null, pathLayer = null;
 
@@ -403,12 +338,6 @@
                         fetchWeather(); 
                         if (currentTab.value === 'map') updateMapMarkers();
                     });
-
-                    // Listen to Expenses
-                    const qExpenses = query(collection(db, "expenses"));
-                    onSnapshot(qExpenses, (snapshot) => {
-                        expenses.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    });
                 };
 
                 const saveEvent = async () => {
@@ -426,27 +355,6 @@
                     if(!confirm('確定刪除？')) return;
                     const { deleteDoc, doc } = fireOps.value;
                     await deleteDoc(doc(dbInstance.value, "events", id));
-                };
-
-                const saveExpense = async () => {
-                    const { addDoc, collection } = fireOps.value;
-                    await addDoc(collection(dbInstance.value, "expenses"), {
-                        ...formExpense.value,
-                        createdAt: new Date()
-                    });
-                    showExpenseModal.value = false;
-                    formExpense.value = { item: '', amount: '', currency: 'PHP', payer: '爸爸' };
-                };
-
-                const deleteExpense = async (id) => {
-                    if(!confirm('確定刪除這筆帳？')) return;
-                    const { deleteDoc, doc } = fireOps.value;
-                    await deleteDoc(doc(dbInstance.value, "expenses", id));
-                };
-
-                const saveRate = () => {
-                    showRateModal.value = false;
-                    alert("匯率已更新！");
                 };
 
                 const initMap = () => {
@@ -490,16 +398,6 @@
                     return itinerary.value.filter(e => e.date === date).sort((a,b) => a.time.localeCompare(b.time));
                 });
                 
-                const totalExpenseTwd = computed(() => expenses.value.reduce((sum, ex) => sum + (ex.amount * (ex.currency === 'PHP' ? exchangeRate.value : 1)), 0));
-                
-                const balances = computed(() => {
-                    const perPerson = totalExpenseTwd.value / members.length;
-                    const result = {};
-                    members.forEach(m => result[m] = -perPerson);
-                    expenses.value.forEach(ex => result[ex.payer] += (ex.amount * (ex.currency === 'PHP' ? exchangeRate.value : 1)));
-                    return result;
-                });
-
                 const fetchWeather = async () => {
                      itinerary.value.forEach(async (ev) => {
                         if (!ev.lat || !ev.lng || ev.weather) return;
@@ -513,9 +411,21 @@
                 
                 const getWeatherIcon = (code) => code <= 3 ? 'sun' : 'cloud';
                 const hasEvent = (date) => itinerary.value.some(e => e.date === date);
-                const getTypeName = (type) => ({'food':'餐廳', 'spot':'景點', 'transport':'交通', 'hotel':'住宿'})[type] || '其他';
-                const getAvatar = (name) => ({ '爸爸': '👨🏻', '媽媽': '👩🏻', '阿嬤': '👵🏻', 'Remi': '👧🏻' })[name] || '👤';
-                const formatNumber = (num) => new Intl.NumberFormat().format(Math.round(num));
+                const getTypeName = (type) => ({'food':'餐廳', 'spot':'景點', 'transport':'交通', 'hotel':'住宿', 'note':'筆記'})[type] || '其他';
+                const getTypeStyle = (type) => {
+                    if(type==='food') return 'bg-orange-50 text-orange-600 border-orange-100';
+                    if(type==='transport') return 'bg-blue-50 text-blue-600 border-blue-100';
+                    if(type==='hotel') return 'bg-indigo-50 text-indigo-600 border-indigo-100';
+                    if(type==='note') return 'bg-red-50 text-red-600 border-red-100';
+                    return 'bg-teal-50 text-teal-600 border-teal-100';
+                };
+                const getTypeColor = (type) => {
+                    if(type==='food') return 'bg-orange-400';
+                    if(type==='transport') return 'bg-blue-400';
+                    if(type==='hotel') return 'bg-indigo-400';
+                    if(type==='note') return 'bg-red-400';
+                    return 'bg-teal-400';
+                };
 
                 const changeDate = (idx) => { currentDateIndex.value = idx; if(currentTab.value === 'map') setTimeout(updateMapMarkers, 300); };
                 const switchTab = (tabId) => {
@@ -536,10 +446,10 @@
 
                 return {
                     firebaseReady, tabs, currentTab, switchTab, tripDays, currentDateIndex, changeDate, hasEvent,
-                    currentDayEvents, expenses, totalExpenseTwd, balances, members, exchangeRate,
-                    showEventModal, showExpenseModal, showRateModal, formEvent, formExpense,
-                    saveEvent, deleteEvent, saveExpense, deleteExpense, saveRate,
-                    getAvatar, getWeatherIcon, getTypeName, formatNumber, openMapForEvent, locateUser, fitBounds
+                    currentDayEvents,
+                    showEventModal, formEvent,
+                    saveEvent, deleteEvent,
+                    getWeatherIcon, getTypeName, getTypeStyle, getTypeColor, openMapForEvent, locateUser, fitBounds
                 };
             }
         }).mount('#app');
