@@ -81,7 +81,7 @@
                             <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                         </span>
                     </div>
-                    <p class="text-xs text-slate-400 mt-0.5">6大1小 • 宿霧薄荷島</p>
+                    <p class="text-xs text-slate-400 mt-0.5">6大1小 • 宿霧薄荷島 8日遊</p>
                 </div>
                 <div class="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-lg border border-teal-100 shadow-sm">
                     👧🏻
@@ -122,7 +122,7 @@
                         <!-- Time -->
                         <div class="flex flex-col items-center min-w-[3.5rem] pt-0.5 border-r border-slate-50 pr-3">
                             <span class="text-lg font-bold text-slate-700 font-sans tracking-tight">{{ event.time }}</span>
-                            <!-- Weather or Icon -->
+                            <!-- Weather -->
                             <div v-if="event.weather" class="mt-2 text-xs flex flex-col items-center text-amber-500 bg-amber-50 px-1 py-0.5 rounded">
                                 <i :data-lucide="getWeatherIcon(event.weather.code)" class="w-3 h-3 mb-0.5"></i>
                                 <span class="scale-90 font-bold">{{ event.weather.temp }}°</span>
@@ -162,7 +162,7 @@
                 </div>
             </transition>
 
-            <!-- Tab 3: Map -->
+            <!-- Tab 2: Map -->
             <div v-show="currentTab === 'map'" class="h-full w-full relative">
                 <div id="map-container"></div>
                 <div class="absolute bottom-24 right-4 flex flex-col gap-2 z-[400]">
@@ -237,69 +237,76 @@
                 const dbInstance = ref(null);
                 const fireOps = ref(null);
 
-                // --- Initial Data (整合了 PDF 與圖片的詳細行程) ---
+                // --- Initial Data (完整 8 天詳細行程，含早餐與 Day 8 晚班機) ---
                 const initialItinerary = [
                     // Day 1: 2/11 (二)
                     { id: '1-0', date: '2026-02-11', time: '03:15', title: '5J311 飛往馬尼拉', locationName: 'TPE T1 -> MNL T3', type: 'transport', tag: '轉機' },
                     { id: '1-1', date: '2026-02-11', time: '05:45', title: '抵達馬尼拉 T3', locationName: 'MNL T3', type: 'note', tag: '需領行李' },
+                    { id: '1-1-b', date: '2026-02-11', time: '07:00', title: '機場早餐', locationName: 'MNL T3 美食街', type: 'food', tag: 'Jollibee' },
                     { id: '1-2', date: '2026-02-11', time: '10:50', title: '5J585 飛往宿霧', locationName: 'MNL T3 -> CEB', type: 'transport' },
                     { id: '1-3', date: '2026-02-11', time: '12:25', title: '抵達宿霧', locationName: 'Mactan Airport', type: 'transport' },
                     { id: '1-4', date: '2026-02-11', time: '13:00', title: '前往飯店 Check-in', locationName: '宿務派克蘭國際大飯店', type: 'hotel', tag: '含早', lat: 10.317, lng: 123.903 },
-                    { id: '1-5', date: '2026-02-11', time: '14:00', title: '換匯 & 午餐', locationName: 'Ayala Center', type: 'food', tag: 'Abaca' },
-                    { id: '1-6', date: '2026-02-11', time: '18:00', title: '晚餐: The Pyramid', locationName: 'IT Park', type: 'food', tag: '氣氛佳' },
+                    { id: '1-5', date: '2026-02-11', time: '14:00', title: '換匯 & 午餐', locationName: 'Ayala Center', type: 'food', tag: 'House of Lechon' },
+                    { id: '1-6', date: '2026-02-11', time: '18:00', title: '晚餐: Sugbo Mercado', locationName: 'IT Park 夜市', type: 'food', tag: '推薦' },
 
                     // Day 2: 2/12 (三)
+                    { id: '2-0', date: '2026-02-12', time: '07:30', title: '飯店自助早餐', locationName: 'Parklane Hotel', type: 'food', tag: 'Buffet' },
                     { id: '2-1', date: '2026-02-12', time: '09:00', title: 'Cebu Ocean Park', locationName: 'SM Seaside 旁', type: 'spot', lat: 10.283, lng: 123.882 },
                     { id: '2-2', date: '2026-02-12', time: '12:00', title: 'Aqua Dining 午餐', locationName: '海底隧道旁', type: 'food', tag: '網美餐' },
                     { id: '2-3', date: '2026-02-12', time: '14:00', title: '古蹟巡禮', locationName: '麥哲倫十字架/聖嬰大教堂', type: 'spot' },
                     { id: '2-4', date: '2026-02-12', time: '18:00', title: '晚餐: Texas Roadhouse', locationName: 'SM Seaside', type: 'food', tag: '牛排推薦' },
 
                     // Day 3: 2/13 (四)
+                    { id: '3-0', date: '2026-02-13', time: '07:30', title: '飯店自助早餐', locationName: 'Parklane Hotel', type: 'food', tag: 'Buffet' },
                     { id: '3-1', date: '2026-02-13', time: '10:40', title: '抵達港口 Pier 1', locationName: 'Cebu Pier 1', type: 'note', tag: '買午餐' },
                     { id: '3-2', date: '2026-02-13', time: '11:40', title: 'Ocean Jet 開船', locationName: '前往薄荷島', type: 'transport', tag: 'KKDay票' },
                     { id: '3-3', date: '2026-02-13', time: '14:00', title: '抵達 Tagbilaran', locationName: 'Bohol', type: 'transport', tag: '包車接送' },
                     { id: '3-4', date: '2026-02-13', time: '15:00', title: 'Check-in 邦勞飯店', locationName: 'Best Western Plus (Alona)', type: 'hotel', tag: '含早' },
-                    { id: '3-5', date: '2026-02-13', time: '18:00', title: '晚餐: Giuseppe Pizzeria', locationName: 'Alona Beach Rd', type: 'food', tag: '4.3⭐' },
+                    { id: '3-5', date: '2026-02-13', time: '18:00', title: '晚餐: Mist', locationName: '森林系網美餐廳', type: 'food', tag: '需訂位' },
 
                     // Day 4: 2/14 (五)
+                    { id: '4-0', date: '2026-02-14', time: '07:30', title: '飯店自助早餐', locationName: 'Best Western', type: 'food', tag: 'Buffet' },
                     { id: '4-1', date: '2026-02-14', time: '09:00', title: 'Napaling Reef', locationName: '沙丁魚風暴 (水下攝影)', type: 'spot' },
                     { id: '4-2', date: '2026-02-14', time: '11:00', title: 'Hinagdanan Cave', locationName: '鐘乳石洞 (不游泳)', type: 'spot' },
                     { id: '4-3', date: '2026-02-14', time: '12:00', title: '午餐: Ubeco', locationName: '韓系網美店', type: 'food', tag: '首選' },
                     { id: '4-4', date: '2026-02-14', time: '14:00', title: '度假村休息', locationName: 'Best Western', type: 'spot' },
-                    { id: '4-5', date: '2026-02-14', time: '18:00', title: '晚餐: Mist', locationName: '森林系餐廳', type: 'food', tag: '需訂位' },
+                    { id: '4-5', date: '2026-02-14', time: '18:00', title: '晚餐: The Buzz Cafe', locationName: 'Alona Beach', type: 'food', tag: '蜜蜂農場分店' },
 
                     // Day 5: 2/15 (六)
+                    { id: '5-0', date: '2026-02-15', time: '05:30', title: '簡易早餐', locationName: '飯店餐盒/麵包', type: 'food', tag: '早起' },
                     { id: '5-1', date: '2026-02-15', time: '06:00', title: '跳島一日遊', locationName: 'Balicasag (海龜/斷層)', type: 'spot', tag: '包船' },
                     { id: '5-2', date: '2026-02-15', time: '11:00', title: 'Virgin Island', locationName: '處女島', type: 'spot' },
                     { id: '5-3', date: '2026-02-15', time: '14:30', title: '換飯店: Villa Kalachuchi', locationName: 'Danao 區', type: 'hotel', tag: '無早' },
-                    { id: '5-4', date: '2026-02-15', time: '18:00', title: '晚餐: Luna Rossa', locationName: '素食義大利菜', type: 'food' },
+                    { id: '5-4', date: '2026-02-15', time: '18:00', title: '晚餐: Giuseppe Pizzeria', locationName: 'Danao 附近', type: 'food', tag: '窯烤披薩' },
 
                     // Day 6: 2/16 (日)
+                    { id: '6-0', date: '2026-02-16', time: '08:00', title: '自理/簡易早餐', locationName: 'Villa Kalachuchi (有廚房)', type: 'food' },
                     { id: '6-1', date: '2026-02-16', time: '09:00', title: '陸上包車遊', locationName: 'Bohol 內陸', type: 'transport', tag: '包車' },
                     { id: '6-2', date: '2026-02-16', time: '10:00', title: '人造森林 & 眼鏡猴', locationName: 'Tarsier Area', type: 'spot' },
                     { id: '6-3', date: '2026-02-16', time: '12:00', title: 'Rio Verde 午餐', locationName: '漂流竹筏', type: 'food' },
                     { id: '6-4', date: '2026-02-16', time: '14:00', title: '巧克力山', locationName: 'Chocolate Hills', type: 'spot' },
                     { id: '6-5', date: '2026-02-16', time: '15:30', title: 'Zipline & ATV', locationName: 'Loboc / Graham', type: 'spot' },
-                    { id: '6-6', date: '2026-02-16', time: '18:00', title: '晚餐: Bohol Bee Farm', locationName: '海景懸崖', type: 'food', tag: '冰淇淋' },
+                    { id: '6-6', date: '2026-02-16', time: '18:00', title: '晚餐: Barwoo', locationName: '韓式創意料理', type: 'food', tag: '排隊名店' },
 
                     // Day 7: 2/17 (一)
+                    { id: '7-0', date: '2026-02-17', time: '08:00', title: '自理/簡易早餐', locationName: 'Villa Kalachuchi', type: 'food' },
                     { id: '7-1', date: '2026-02-17', time: '11:00', title: 'South Farm', locationName: '動物農場', type: 'spot' },
                     { id: '7-2', date: '2026-02-17', time: '15:30', title: '前往邦勞機場', locationName: 'Panglao Airport', type: 'transport' },
                     { id: '7-3', date: '2026-02-17', time: '18:20', title: '5J616 飛往馬尼拉', locationName: 'TAG -> MNL', type: 'transport' },
                     { id: '7-4', date: '2026-02-17', time: '20:00', title: '抵達馬尼拉', locationName: 'MNL T3', type: 'transport', tag: 'Grab Car' },
                     { id: '7-5', date: '2026-02-17', time: '21:00', title: '入住 Uptown Parksuites', locationName: 'BGC (三越旁)', type: 'hotel' },
-                    { id: '7-6', date: '2026-02-17', time: '21:30', title: '晚餐: Shake Shack', locationName: '簡單吃', type: 'food' },
+                    { id: '7-6', date: '2026-02-17', time: '21:30', title: '晚餐: Shake Shack', locationName: 'BGC', type: 'food', tag: '簡單吃' },
 
                     // Day 8: 2/18 (二)
+                    { id: '8-0', date: '2026-02-18', time: '09:00', title: 'Wildflour Cafe', locationName: 'Uptown (網美早午餐)', type: 'food', tag: '推薦' },
                     { id: '8-1', date: '2026-02-18', time: '10:00', title: 'Mind Museum', locationName: 'BGC', type: 'spot', tag: '科學館' },
-                    { id: '8-2', date: '2026-02-18', time: '12:00', title: '午餐: Mamou Meats', locationName: 'Uptown', type: 'food', tag: '5.0⭐' },
-                    { id: '8-3', date: '2026-02-18', time: '15:00', title: '前往機場', locationName: 'MNL T3', type: 'transport' },
-                    { id: '8-4', date: '2026-02-18', time: '23:35', title: '5J310 返台', locationName: 'MNL -> TPE', type: 'transport' }
+                    { id: '8-2', date: '2026-02-18', time: '12:00', title: '午餐: Mamou Meats', locationName: 'Uptown', type: 'food', tag: '🏆5.0⭐' },
+                    { id: '8-3', date: '2026-02-18', time: '15:00', title: 'BGC 區域逛街', locationName: 'High Street', type: 'activity' },
+                    { id: '8-4', date: '2026-02-18', time: '19:00', title: '前往機場 Check-in', locationName: 'MNL T3', type: 'transport' },
+                    { id: '8-5', date: '2026-02-18', time: '23:35', title: '5J310 返台', locationName: 'MNL -> TPE', type: 'transport' }
                 ];
 
                 const tabs = [{ id: 'schedule', label: '行程', icon: 'calendar' }, { id: 'map', label: '地圖', icon: 'map' }];
-                // 註：這行僅供參考，若未來需要住宿分配可以使用
-                // const members = ['爸爸', '媽媽', '爺爺', '奶奶', '阿伯', '伯母', 'Remi'];
                 
                 const tripDays = [
                     { date: '2026-02-11', dateShort: '2/11', dayShort: 'Tue', dayName:'週二', dayNum: '11' }, { date: '2026-02-12', dateShort: '2/12', dayShort: 'Wed', dayName:'週三', dayNum: '12' },
@@ -411,16 +418,16 @@
                 
                 const getWeatherIcon = (code) => code <= 3 ? 'sun' : 'cloud';
                 const hasEvent = (date) => itinerary.value.some(e => e.date === date);
-                const getTypeName = (type) => ({'food':'餐廳', 'spot':'景點', 'transport':'交通', 'hotel':'住宿', 'note':'筆記'})[type] || '其他';
+                const getTypeName = (type) => ({'food':'餐廳', 'spot':'景點', 'transport':'交通', 'hotel':'住宿', 'note':'筆記', 'activity':'活動', 'meal':'餐飲'})[type] || '其他';
                 const getTypeStyle = (type) => {
-                    if(type==='food') return 'bg-orange-50 text-orange-600 border-orange-100';
+                    if(type==='food' || type==='meal') return 'bg-orange-50 text-orange-600 border-orange-100';
                     if(type==='transport') return 'bg-blue-50 text-blue-600 border-blue-100';
                     if(type==='hotel') return 'bg-indigo-50 text-indigo-600 border-indigo-100';
                     if(type==='note') return 'bg-red-50 text-red-600 border-red-100';
                     return 'bg-teal-50 text-teal-600 border-teal-100';
                 };
                 const getTypeColor = (type) => {
-                    if(type==='food') return 'bg-orange-400';
+                    if(type==='food' || type==='meal') return 'bg-orange-400';
                     if(type==='transport') return 'bg-blue-400';
                     if(type==='hotel') return 'bg-indigo-400';
                     if(type==='note') return 'bg-red-400';
