@@ -1,10 +1,10 @@
-<!-- Version: v38.0 (No Bottom Nav, Real Open-Meteo Weather API, Rain Forecast) -->
+<!-- Version: v38.0 (Local Storage Persistence, Clean Header, Map Fix) -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Remi's 2026 Trip</title>
+    <title>Remi's Family Trip</title>
     
     <!-- 核心庫 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -15,31 +15,6 @@
     <!-- Leaflet Map -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-    <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        
-        const firebaseConfig = {
-            apiKey: "AIzaSyA1JHrkPbANS-g7X8OudpD0w819ZXA8-7A",
-            authDomain: "family-trip-2026-1c43d.firebaseapp.com",
-            projectId: "family-trip-2026-1c43d",
-            storageBucket: "family-trip-2026-1c43d.firebasestorage.app",
-            messagingSenderId: "157512457202",
-            appId: "1:157512457202:web:b211df6298c0057e62e96b",
-            measurementId: "G-LDQW10LQZ4"
-        };
-
-        try {
-            const app = initializeApp(firebaseConfig);
-            window.db = getFirestore(app);
-            window.fireOps = { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch };
-            setTimeout(() => window.dispatchEvent(new Event('firebase-ready')), 800);
-        } catch (e) {
-            console.log("Offline mode");
-        }
-    </script>
 
     <script>
         tailwind.config = {
@@ -65,9 +40,12 @@
         body { background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         
-        /* 頂部 Header */
+        /* 底部導航 (已移除，改用頂部按鈕) */
+
+        /* 頂部 Header (極簡白) */
         .simple-header {
-            background: white;
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
             padding-top: max(env(safe-area-inset-top), 20px);
             position: sticky; top: 0; z-index: 40;
             border-bottom: 1px solid #F1F5F9;
@@ -78,13 +56,17 @@
         .date-btn-active { background-color: #0D9488; color: white; transform: scale(1.05); box-shadow: 0 4px 10px rgba(13,148,136,0.2); border: none; }
         .date-btn-inactive { background-color: #F1F5F9; color: #94A3B8; border: 1px solid transparent; }
 
-        /* 地圖圖層控制 */
+        /* 地圖圖層控制 (全螢幕覆蓋) */
         .map-layer {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            z-index: 0; opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+            z-index: 50; /* 比 Header 高 */
             background-color: #e5e7eb;
+            transform: translateX(100%); /* 預設在右邊 */
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        .map-layer.active { z-index: 60; opacity: 1; pointer-events: auto; }
+        .map-layer.active {
+            transform: translateX(0); /* 滑入 */
+        }
         #map-container { width: 100%; height: 100%; }
         
         /* 列表容器 */
@@ -109,7 +91,7 @@
             position: fixed; bottom: 30px; right: 24px;
             width: 56px; height: 56px; background-color: #F59E0B; color: white;
             border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4); z-index: 50;
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4); z-index: 30;
             transition: transform 0.2s;
         }
         .fab-btn:active { transform: scale(0.95); }
@@ -126,7 +108,7 @@
 
     <div id="app" v-cloak class="flex flex-col w-full h-full max-w-md mx-auto relative shadow-2xl overflow-hidden bg-slate-50 h-screen">
 
-        <!-- 1. 頂部導航與日期 -->
+        <!-- 1. 頂部導航與日期 (Fixed Top) -->
         <div class="simple-header shrink-0">
             <div class="px-4 pb-2 flex justify-between items-center">
                 <div>
@@ -136,9 +118,18 @@
                     </p>
                 </div>
                 <div class="flex gap-2">
-                    <button @click="switchTab('map')" class="w-9 h-9 rounded-full bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 active:scale-95 transition shadow-sm"><i data-lucide="map" class="w-4 h-4"></i></button>
-                    <button @click="openPopup('info')" class="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 active:scale-95 transition"><i data-lucide="info" class="w-4 h-4"></i></button>
-                    <button @click="openPopup('shopping')" class="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 active:scale-95 transition"><i data-lucide="shopping-bag" class="w-4 h-4"></i></button>
+                    <!-- 地圖按鈕 -->
+                    <button @click="openMapLayer" class="w-9 h-9 rounded-full bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 active:scale-95 transition shadow-sm">
+                        <i data-lucide="map" class="w-4 h-4"></i>
+                    </button>
+                    <!-- 資訊 -->
+                    <button @click="openPopup('info')" class="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 active:scale-95 transition">
+                        <i data-lucide="info" class="w-4 h-4"></i>
+                    </button>
+                    <!-- 購物 -->
+                    <button @click="openPopup('shopping')" class="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 active:scale-95 transition">
+                        <i data-lucide="shopping-bag" class="w-4 h-4"></i>
+                    </button>
                 </div>
             </div>
 
@@ -153,7 +144,7 @@
             </div>
         </div>
 
-        <!-- 2. 主內容區域 -->
+        <!-- 2. 主內容區域 (可捲動) -->
         <main class="flex-1 overflow-y-auto hide-scrollbar relative">
             
             <!-- 行程列表層 -->
@@ -172,8 +163,7 @@
                             </div>
                             <div class="flex items-center gap-1 text-[10px] font-bold mt-0.5" :class="weather.rainProb > 40 ? 'text-blue-600' : 'text-slate-400'">
                                 <i data-lucide="umbrella" class="w-3 h-3"></i> 
-                                <span>降雨機率 {{ weather.rainProb }}%</span>
-                                <span v-if="weather.rainProb > 40">🌧️</span>
+                                <span>降雨 {{ weather.rainProb }}%</span>
                             </div>
                         </div>
                     </div>
@@ -185,38 +175,58 @@
 
                 <!-- Timeline -->
                 <div class="space-y-0 relative pl-2">
+                    
                     <div v-for="(event, index) in currentDayEvents" :key="event.id" class="relative z-10 mb-6 group last:mb-0">
-                        <!-- Connector -->
-                        <div v-if="index < currentDayEvents.length - 1" class="absolute left-[23px] top-10 bottom-[-24px] w-[2px] border-l-2 border-dashed border-slate-300 z-0"></div>
+                        
+                        <!-- Timeline Connector -->
+                        <div v-if="index < currentDayEvents.length - 1" 
+                             class="absolute left-[23px] top-10 bottom-[-24px] w-[2px] border-l-2 border-dashed border-slate-300 z-0"></div>
 
                         <div class="flex gap-4">
-                            <!-- Time -->
-                            <div class="flex flex-col items-center w-12 shrink-0 pt-1 bg-slate-50 z-10">
+                            <!-- Time & Dot -->
+                            <div class="flex flex-col items-center w-12 shrink-0 pt-1 z-10">
                                 <div class="w-3 h-3 rounded-full border-2 border-white shadow-sm mb-1" :class="getCategoryColor(event.type)"></div>
                                 <span class="text-xs font-bold text-slate-400 font-en">{{ event.time }}</span>
                             </div>
 
                             <!-- Card -->
-                            <div class="bg-white rounded-2xl p-4 shadow-soft border border-slate-100 flex-1 min-w-0 active:scale-98 transition-transform" @click="openMap(event)">
+                            <div class="bg-white rounded-2xl p-4 shadow-soft border border-slate-100 flex-1 min-w-0 active:scale-98 transition-transform" @click="openGoogleMap(event)">
                                 <div class="flex justify-between items-start">
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-2 mb-1">
-                                            <span class="text-[10px] font-bold px-2 py-0.5 rounded border" :class="getCategoryBadgeStyle(event.type)">{{ getCategoryName(event.type) }}</span>
-                                            <span v-if="event.transportTime" class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded flex items-center"><i data-lucide="footprints" class="w-3 h-3 mr-1"></i> {{ event.transportTime }}</span>
+                                            <span class="text-[10px] font-bold px-2 py-0.5 rounded border" :class="getCategoryBadgeStyle(event.type)">
+                                                {{ getCategoryName(event.type) }}
+                                            </span>
+                                            <span v-if="event.transportTime" class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded flex items-center">
+                                                <i data-lucide="footprints" class="w-3 h-3 mr-1"></i> {{ event.transportTime }}
+                                            </span>
                                         </div>
                                         <h3 class="text-base font-black text-slate-800 leading-tight truncate pr-1">{{ event.title }}</h3>
-                                        <p v-if="event.locationName" class="text-xs text-slate-400 mt-1 flex items-center gap-1 truncate"><i data-lucide="map-pin" class="w-3 h-3"></i> {{ event.locationName }}</p>
+                                        <p v-if="event.locationName" class="text-xs text-slate-400 mt-1 flex items-center gap-1 truncate">
+                                            <i data-lucide="map-pin" class="w-3 h-3"></i> {{ event.locationName }}
+                                        </p>
                                     </div>
                                     
+                                    <!-- Action Buttons -->
                                     <div class="flex flex-col gap-2 ml-2 shrink-0">
-                                        <button class="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center hover:bg-blue-100 transition shadow-sm"><i data-lucide="navigation" class="w-4 h-4"></i></button>
-                                        <button @click.stop="deleteEvent(event.id)" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition shadow-sm"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                        <button class="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center hover:bg-blue-100 transition shadow-sm">
+                                            <i data-lucide="navigation" class="w-4 h-4"></i>
+                                        </button>
+                                        <button @click.stop="deleteEvent(event.id)" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition shadow-sm">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                        </button>
                                     </div>
                                 </div>
 
+                                <!-- Note Section -->
                                 <div v-if="event.note || event.tag" class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
-                                    <div v-if="event.note" class="bg-slate-50 rounded-lg px-2 py-1.5 text-xs text-slate-600 flex-1 leading-relaxed"><i data-lucide="file-text" class="w-3 h-3 text-amber-400 inline mr-1"></i> {{ event.note }}</div>
-                                    <span v-if="event.tag" class="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg font-bold flex items-center self-start whitespace-nowrap"><i data-lucide="star" class="w-3 h-3 mr-1 fill-yellow-700"></i> {{ event.tag }}</span>
+                                    <div v-if="event.note" class="bg-slate-50 rounded-lg px-2 py-1.5 text-xs text-slate-600 flex-1 leading-relaxed">
+                                        <i data-lucide="file-text" class="w-3 h-3 text-amber-400 inline mr-1"></i> 
+                                        <span>{{ event.note }}</span>
+                                    </div>
+                                    <span v-if="event.tag" class="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg font-bold flex items-center self-start whitespace-nowrap">
+                                        <i data-lucide="star" class="w-3 h-3 mr-1 fill-yellow-700"></i> {{ event.tag }}
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -229,22 +239,28 @@
                 </div>
             </div>
 
-            <!-- 地圖層 -->
-            <div class="map-layer" :class="{'active': currentTab === 'map'}">
-                <button @click="switchTab('schedule')" class="absolute top-12 left-4 w-10 h-10 bg-white rounded-full shadow-lg z-[500] flex items-center justify-center text-slate-700 border border-slate-100"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
-                
-                <div id="map-container"></div>
-                
-                <div class="absolute bottom-10 right-4 flex flex-col gap-2 z-[400]">
-                     <button @click="forceInitMap" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:bg-slate-50"><i data-lucide="refresh-cw" class="w-6 h-6"></i></button>
-                    <button @click="locateUser" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-teal-600 hover:bg-teal-50"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
-                </div>
-            </div>
-
         </main>
 
+        <!-- 地圖層 (全螢幕滑入) -->
+        <div class="map-layer" :class="{'active': showMapLayer}">
+            <button @click="closeMapLayer" class="absolute top-12 left-4 w-10 h-10 bg-white rounded-full shadow-lg z-[500] flex items-center justify-center text-slate-700 border border-slate-100">
+                <i data-lucide="arrow-left" class="w-6 h-6"></i>
+            </button>
+            
+            <div id="map-container"></div>
+            
+            <div class="absolute bottom-10 right-4 flex flex-col gap-2 z-[400]">
+                 <button @click="forceInitMap" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:bg-slate-50"><i data-lucide="refresh-cw" class="w-6 h-6"></i></button>
+                <button @click="locateUser" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-teal-600 hover:bg-teal-50"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
+            </div>
+            
+            <div class="absolute top-12 right-4 bg-white/90 backdrop-blur rounded-xl px-4 py-2 shadow-lg z-[400] border border-white/50 text-center pointer-events-none">
+                 <p class="text-xs text-slate-500 font-bold">{{ tripDays[currentDateIndex].dateShort }} 行程</p>
+            </div>
+        </div>
+
         <!-- Floating Add Button -->
-        <button v-if="currentTab==='schedule'" @click="openAddModal" class="fab-btn">
+        <button @click="openAddModal" class="fab-btn">
             <i data-lucide="plus" class="w-8 h-8"></i>
         </button>
 
@@ -262,9 +278,15 @@
                     <div class="bg-teal-600 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
                         <h3 class="font-bold mb-4 flex items-center"><i data-lucide="coins" class="w-5 h-5 mr-2"></i> 匯率換算</h3>
                         <div class="flex items-center gap-4 relative z-10">
-                            <div class="flex-1"><label class="text-[10px] opacity-70 block mb-1">PHP</label><input type="number" v-model="calcPHP" class="w-full bg-white/20 border-0 rounded-xl text-2xl font-mono font-bold p-3 text-white outline-none" placeholder="0"></div>
+                            <div class="flex-1">
+                                <label class="text-[10px] opacity-70 block mb-1">PHP</label>
+                                <input type="number" v-model="calcPHP" class="w-full bg-white/20 border-0 rounded-xl text-2xl font-mono font-bold p-3 text-white outline-none" placeholder="0">
+                            </div>
                             <i data-lucide="arrow-right" class="w-6 h-6 text-white/50 mt-6"></i>
-                            <div class="flex-1"><label class="text-[10px] opacity-70 block mb-1">TWD</label><div class="text-2xl font-mono font-bold p-3">$ {{ calcTWD }}</div></div>
+                            <div class="flex-1">
+                                <label class="text-[10px] opacity-70 block mb-1">TWD</label>
+                                <div class="text-2xl font-mono font-bold p-3">$ {{ calcTWD }}</div>
+                            </div>
                         </div>
                     </div>
                     <!-- Flights -->
@@ -353,8 +375,8 @@
 
         createApp({
             setup() {
-                const STORAGE_KEY = 'remi_trip_v37_final';
-                const currentTab = ref('schedule');
+                const STORAGE_KEY = 'remi_trip_v38_local';
+                const showMapLayer = ref(false);
                 const activePopup = ref(null);
                 const currentDateIndex = ref(0);
                 const calcPHP = ref('');
@@ -381,8 +403,11 @@
                     { id: '1-4', date: '2026-02-11', time: '13:00', title: '飯店 Check-in', locationName: '宿務派克蘭國際大飯店', type: 'hotel', transportTime: '30 min', note: '寄放行李、稍作休息', lat: 10.317, lng: 123.903 },
                     { id: '1-5', date: '2026-02-11', time: '14:00', title: '換匯 & Ayala', locationName: 'Ayala Center Cebu', type: 'activity', tag: '匯率佳', lat: 10.317, lng: 123.905 },
                     { id: '1-7', date: '2026-02-11', time: '18:00', title: '夜市 Sugbo Mercado', locationName: 'IT Park', type: 'food', tag: '晚餐', note: '當地人氣夜市', lat: 10.329, lng: 123.905 },
-                    { id: '2-1', date: '2026-02-12', time: '09:00', title: 'Cebu Ocean Park', locationName: 'SM Seaside 旁', type: 'spot', note: '適合溜小孩', lat: 10.283, lng: 123.882 },
+                    { id: '2-0', date: '2026-02-12', time: '07:30', title: '飯店早餐', locationName: 'Parklane Hotel', type: 'food', lat: 10.317, lng: 123.903 },
+                    { id: '2-1', date: '2026-02-12', time: '09:00', title: '抵達 Cebu Ocean Park', locationName: 'SM Seaside 旁', type: 'spot', note: '適合溜小孩', lat: 10.283, lng: 123.882 },
+                    { id: '2-2', date: '2026-02-12', time: '10:00', title: 'Grab 移動', locationName: '', type: 'transport' },
                     { id: '2-3', date: '2026-02-12', time: '11:00', title: '午餐 Aqua Dining', locationName: '海底隧道旁', type: 'food', tag: '需預約', lat: 10.283, lng: 123.882 },
+                    { id: '2-4', date: '2026-02-12', time: '12:00', title: 'SM Seaside Mall 逛街', locationName: 'Blackbeard Seafood', type: 'activity', lat: 10.282, lng: 123.881 },
                     { id: '2-5', date: '2026-02-12', time: '13:00', title: '古蹟巡禮', locationName: '麥哲倫十字架', type: 'spot', lat: 10.293, lng: 123.901 },
                     { id: '2-8', date: '2026-02-12', time: '18:00', title: '晚餐 Texas Roadhouse', locationName: 'SM Seaside', type: 'food', tag: '推薦', lat: 10.282, lng: 123.881 },
                     { id: '3-1', date: '2026-02-13', time: '10:40', title: '抵達港口 Pier 1', locationName: 'Cebu Pier 1', type: 'note', tag: '買午餐', lat: 10.291, lng: 123.905 },
@@ -394,7 +419,8 @@
                     { id: '4-2', date: '2026-02-14', time: '11:00', title: 'Hinagdanan Cave', locationName: '鐘乳石洞', type: 'spot', note: 'No Swim', lat: 9.613, lng: 123.799 },
                     { id: '4-3', date: '2026-02-14', time: '12:00', title: '午餐 Ubeco', locationName: '韓系網美店', type: 'food', tag: '指定', lat: 9.6056, lng: 123.7742 },
                     { id: '4-5', date: '2026-02-14', time: '18:00', title: '晚餐 Mist', locationName: '森林系餐廳', type: 'food', tag: '推薦', lat: 9.554, lng: 123.766 },
-                    { id: '5-0', date: '2026-02-15', time: '06:00', title: '跳島一日遊', locationName: 'Balicasag', type: 'spot', tag: '包船', lat: 9.518, lng: 123.680 },
+                    { id: '5-0', date: '2026-02-15', time: '05:30', title: '簡易早餐', locationName: '餐盒', type: 'food', tag: '早起', lat: 9.546, lng: 123.774 },
+                    { id: '5-1', date: '2026-02-15', time: '06:00', title: '跳島一日遊', locationName: 'Balicasag', type: 'spot', tag: '包船', lat: 9.518, lng: 123.680 },
                     { id: '5-2', date: '2026-02-15', time: '11:00', title: 'Virgin Island', locationName: '處女島', type: 'spot', lat: 9.556, lng: 123.730 },
                     { id: '5-4', date: '2026-02-15', time: '14:30', title: 'Check in Villa', locationName: 'Villa Kalachuchi (Danao)', type: 'hotel', note: '無早餐有廚房', lat: 9.556, lng: 123.760 },
                     { id: '5-5', date: '2026-02-15', time: '18:00', title: '晚餐 Luna Rossa', locationName: '素食義大利菜', type: 'food', tag: '推薦', lat: 9.553, lng: 123.762 },
@@ -415,7 +441,6 @@
                     { id: '8-4', date: '2026-02-18', time: '23:35', title: '返台 5J310', locationName: 'MNL -> TPE', type: 'transport' }
                 ];
 
-                // LocalStorage First
                 const loadFromLocal = () => {
                     const saved = localStorage.getItem(STORAGE_KEY);
                     return saved ? JSON.parse(saved) : { events: [...initialItinerary], shopping: [] };
@@ -425,11 +450,19 @@
                 const shoppingList = ref(localData.shopping);
 
                 const saveToLocal = () => {
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify({ events: events.value, shopping: shoppingList.value }));
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify({ 
+                        events: events.value,
+                        shopping: shoppingList.value
+                    }));
                 };
 
                 const resetToDefault = () => {
-                    if(confirm('重置？')) { events.value = [...initialItinerary]; shoppingList.value = []; saveToLocal(); location.reload(); }
+                    if(confirm('重置？')) { 
+                        events.value = [...initialItinerary]; 
+                        shoppingList.value = [];
+                        saveToLocal(); 
+                        location.reload(); 
+                    }
                 };
 
                 const currentDayEvents = computed(() => {
@@ -437,14 +470,13 @@
                     return events.value.filter(e => e.date === targetDate).sort((a,b) => a.time.localeCompare(b.time));
                 });
                 
-                // Weather Real API
+                // Real Weather API
                 const weather = ref({ temp: '--', feels_like: '--', rainProb: '--', icon: 'sun', isRainy: false });
                 const fetchWeather = async () => {
                     const d = tripDays[currentDateIndex.value];
                     try {
                         const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${d.lat}&longitude=${d.lng}&current=temperature_2m,apparent_temperature,precipitation,weather_code,is_day&daily=precipitation_probability_max&timezone=auto`);
                         const data = await res.json();
-                        const dailyIndex = 0; // Just use today's forecast as proxy for future date relative to location
                         const code = data.current.weather_code;
                         const isRain = code >= 51;
                         weather.value = {
@@ -454,37 +486,73 @@
                             icon: isRain ? 'cloud-rain' : (code <= 3 ? 'sun' : 'cloud'),
                             isRainy: isRain
                         };
-                    } catch(e) { console.log(e); }
+                    } catch(e) {}
                 };
 
                 const calcTWD = computed(() => { const v = parseFloat(calcPHP.value); return isNaN(v) ? 0 : Math.round(v * 0.56); });
                 const changeDate = (idx) => { currentDateIndex.value = idx; fetchWeather(); };
-                const openMap = (e) => { const q = e.address || e.locationName || e.title; if(q) window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`, '_blank'); };
+                
+                const openGoogleMap = (e) => {
+                    const q = e.address || e.locationName || e.title;
+                    if(q) window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`, '_blank');
+                };
+                
                 const openPopup = (t) => activePopup.value = t;
                 const closePopup = () => activePopup.value = null;
-                const openAddModal = () => { formEvent.value = { date: tripDays[currentDateIndex.value].date, time: '12:00', type: 'spot', title: '', locationName: '', address: '', note: '' }; showEventModal.value = true; };
-                const saveEvent = () => { events.value.push({...formEvent.value, id: Date.now()}); saveToLocal(); showEventModal.value = false; };
-                const addShopping = () => { if(!formShopping.value.name) return; shoppingList.value.push({ ...formShopping.value, id: Date.now() }); formShopping.value = { name: '' }; saveToLocal(); };
-                const deleteItem = (type, idx) => { if(type === 'shopping') shoppingList.value.splice(idx, 1); saveToLocal(); };
+                const openAddModal = () => { 
+                    formEvent.value = { date: tripDays[currentDateIndex.value].date, time: '12:00', type: 'spot', title: '', locationName: '', address: '', note: '' }; 
+                    showEventModal.value = true; 
+                };
+                
+                const saveEvent = () => { 
+                    events.value.push({...formEvent.value, id: Date.now()}); 
+                    saveToLocal(); 
+                    showEventModal.value = false; 
+                };
+                
+                const addShopping = () => {
+                    if(!formShopping.value.name) return;
+                    shoppingList.value.push({ ...formShopping.value, id: Date.now() });
+                    formShopping.value = { name: '' };
+                    saveToLocal();
+                };
+
+                const deleteItem = (type, idx) => {
+                     if(type === 'shopping') shoppingList.value.splice(idx, 1);
+                     saveToLocal();
+                };
+
                 const deleteEvent = (id) => { if(confirm('確定刪除？')) { events.value = events.value.filter(i => i.id !== id); saveToLocal(); }};
 
-                // Map Logic
+                // Map Logic (Fixed: Force Re-render with Layer)
                 let map = null;
                 let markersLayer = null;
-                const forceInitMap = () => {
-                     if (map) { map.off(); map.remove(); map = null; }
-                     setTimeout(() => {
-                         const el = document.getElementById('map-container');
-                         if(!el) return;
-                         map = L.map(el, { zoomControl: false }).setView([10.3157, 123.8854], 12);
-                         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
-                         markersLayer = L.layerGroup().addTo(map);
-                         updateMapMarkers();
-                     }, 200);
+
+                const openMapLayer = () => {
+                    showMapLayer.value = true;
+                    // Force refresh map size after transition
+                    setTimeout(() => {
+                        if (!map) initMap();
+                        else {
+                            map.invalidateSize();
+                            updateMapMarkers();
+                        }
+                    }, 100);
                 };
+
+                const closeMapLayer = () => { showMapLayer.value = false; };
+
+                const initMap = () => {
+                    map = L.map('map-container', { zoomControl: false }).setView([10.3157, 123.8854], 12);
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
+                    markersLayer = L.layerGroup().addTo(map);
+                    updateMapMarkers();
+                };
+
                 const updateMapMarkers = () => {
                     if (!map || !markersLayer) return;
                     markersLayer.clearLayers();
+                    // Show markers for current day
                     const dayEvents = events.value.filter(e => e.date === tripDays[currentDateIndex.value].date && e.lat && e.lng);
                     if (dayEvents.length > 0) {
                         const latlngs = [];
@@ -497,14 +565,14 @@
                         map.fitBounds(L.latLngBounds(latlngs), { padding: [50, 50] });
                     }
                 };
+                
                 const locateUser = () => map && map.locate({ setView: true, maxZoom: 14 });
                 const fitBounds = () => updateMapMarkers();
-                const switchTab = (tabId) => { currentTab.value = tabId; if(tabId === 'map') forceInitMap(); };
 
                 // Helpers
                 const getCategoryName = (c) => ({ spot: '景點', food: '美食', hotel: '住宿', transport: '交通', note: '筆記', activity: '活動' })[c] || '其他';
                 const getCategoryColor = (c) => ({ spot: 'bg-teal-500', food: 'bg-amber-400', hotel: 'bg-indigo-500', transport: 'bg-sky-500', note: 'bg-rose-400' })[c] || 'bg-slate-400';
-                const getCategoryIcon = (c) => ({ spot: 'camera', food: 'utensils', hotel: 'bed', transport: 'car', note: 'file-text' })[c] || 'circle';
+                const getCategoryIcon = (c) => ({ spot: 'camera', food: 'utensils', hotel: 'bed', transport: 'car', note: 'file-text', activity: 'person-standing' })[c] || 'circle';
                 const getCategoryBadgeStyle = (c) => ({ spot: 'bg-teal-50 text-teal-600 border-teal-200', food: 'bg-amber-50 text-amber-600 border-amber-200' })[c] || 'bg-slate-50 text-slate-500 border-slate-200';
 
                 // Init
@@ -513,14 +581,14 @@
                     fetchWeather();
                 });
                 
-                watch([currentTab, currentDateIndex, activePopup], () => {
+                watch([currentDateIndex, activePopup], () => {
                     nextTick(() => lucide.createIcons());
-                    if(currentTab.value === 'map') forceInitMap();
                 });
 
                 return {
-                    currentTab, activePopup, currentDateIndex, currentDayEvents, tripDays, changeDate, openMap, switchTab,
-                    saveEvent, deleteEvent, openPopup, closePopup, openAddModal, initMap: forceInitMap, locateUser, fitBounds,
+                    activePopup, currentDateIndex, currentDayEvents, tripDays, changeDate, openGoogleMap, 
+                    saveEvent, deleteEvent, openPopup, closePopup, openAddModal, 
+                    initMap, locateUser, fitBounds, openMapLayer, closeMapLayer, showMapLayer,
                     getCategoryName, getCategoryColor, getCategoryBadgeStyle, getCategoryIcon, weather, 
                     calcPHP, calcTWD, showEventModal, formEvent, resetToDefault,
                     shoppingList, formShopping, addShopping, deleteItem
@@ -538,4 +606,5 @@
     </style>
 </body>
 </html>
+
 
