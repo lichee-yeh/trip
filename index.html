@@ -1,4 +1,4 @@
-<!-- Version: v44.0 (Removed Bottom Nav, Map Button in Header, Fullscreen UI) -->
+<!-- Version: v46.0 (No Nav Bar, Robust Google Maps Links, Instant Load) -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -16,62 +16,25 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        
-        const firebaseConfig = {
-            apiKey: "AIzaSyA1JHrkPbANS-g7X8OudpD0w819ZXA8-7A",
-            authDomain: "family-trip-2026-1c43d.firebaseapp.com",
-            projectId: "family-trip-2026-1c43d",
-            storageBucket: "family-trip-2026-1c43d.firebasestorage.app",
-            messagingSenderId: "157512457202",
-            appId: "1:157512457202:web:b211df6298c0057e62e96b",
-            measurementId: "G-LDQW10LQZ4"
-        };
-
-        try {
-            const app = initializeApp(firebaseConfig);
-            window.db = getFirestore(app);
-            window.fireOps = { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch };
-            setTimeout(() => window.dispatchEvent(new Event('firebase-ready')), 800);
-        } catch (e) {
-            console.log("Firebase init error (Offline mode)");
-        }
-    </script>
-
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    colors: { 
-                        primary: '#0D9488', // Teal-600
-                        secondary: '#F59E0B', // Amber-500
-                        bg: '#F8FAFC', 
-                    },
-                    fontFamily: { 
-                        sans: ['Noto Sans TC', 'sans-serif'],
-                        en: ['Nunito', 'sans-serif']
-                    },
-                    boxShadow: {
-                        'float': '0 4px 20px -2px rgba(13, 148, 136, 0.2)',
-                        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)'
-                    }
+                    colors: { primary: '#0D9488', secondary: '#F59E0B', bg: '#F8FAFC' },
+                    fontFamily: { sans: ['Noto Sans TC', 'sans-serif'], en: ['Nunito', 'sans-serif'] },
+                    boxShadow: { 'card': '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }
                 }
             }
         }
     </script>
     <style>
-        [v-cloak] { display: none !important; }
         body { background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         
         /* 頂部 Header */
         .simple-header {
-            background: rgba(255,255,255,0.95);
-            backdrop-filter: blur(10px);
-            padding-top: max(env(safe-area-inset-top), 20px);
+            background: white;
+            padding-top: max(env(safe-area-inset-top), 16px);
             position: sticky; top: 0; z-index: 40;
             border-bottom: 1px solid #F1F5F9;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
@@ -119,16 +82,10 @@
             box-shadow: 0 4px 6px rgba(13, 148, 136, 0.2);
         }
 
-        /* Timeline Line Fix */
+        /* Timeline Line */
         .timeline-line {
-            position: absolute;
-            left: 23px; 
-            top: 40px; 
-            bottom: -24px;
-            width: 2px;
-            background-color: #CBD5E1; 
-            border-left: 2px dashed #CBD5E1;
-            z-index: 0;
+            position: absolute; left: 23px; top: 40px; bottom: -24px;
+            width: 2px; background-color: #CBD5E1; border-left: 2px dashed #CBD5E1; z-index: 0;
         }
 
         .popup-enter-active, .popup-leave-active { transition: all 0.25s ease-out; }
@@ -137,9 +94,9 @@
 </head>
 <body class="h-screen flex flex-col font-sans text-slate-700 bg-slate-50">
 
-    <div id="app" v-cloak class="flex flex-col w-full h-full max-w-md mx-auto relative shadow-2xl overflow-hidden bg-slate-50 h-screen">
+    <div id="app" class="flex flex-col w-full h-full max-w-md mx-auto relative shadow-2xl overflow-hidden bg-slate-50 h-screen">
 
-        <!-- 1. Header & Nav -->
+        <!-- 1. Header & Nav (Top Only) -->
         <div class="simple-header shrink-0">
             <div class="px-4 pb-2 flex justify-between items-center">
                 <div>
@@ -149,7 +106,7 @@
                     </p>
                 </div>
                 <div class="flex gap-2">
-                    <!-- 地圖按鈕 (移到這裡) -->
+                    <!-- 地圖按鈕 -->
                     <button @click="switchTab('map')" class="w-9 h-9 rounded-full bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 active:scale-95 transition shadow-sm"><i data-lucide="map" class="w-4 h-4"></i></button>
                     <!-- 資訊 -->
                     <button @click="openPopup('info')" class="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 active:scale-95 transition"><i data-lucide="info" class="w-4 h-4"></i></button>
@@ -203,7 +160,7 @@
                     
                     <div v-for="(event, index) in currentDayEvents" :key="event.id" class="relative z-10 mb-6 group last:mb-0">
                         
-                        <!-- Timeline Connector (Fixed) -->
+                        <!-- Timeline Connector -->
                         <div v-if="index < currentDayEvents.length - 1" class="timeline-line"></div>
 
                         <div class="flex gap-4 relative">
@@ -214,7 +171,7 @@
                             </div>
 
                             <!-- Card -->
-                            <div class="bg-white rounded-2xl p-4 shadow-soft border border-slate-100 flex-1 min-w-0 active:scale-98 transition-transform" @click="openMap(event)">
+                            <div class="bg-white rounded-2xl p-4 shadow-soft border border-slate-100 flex-1 min-w-0 active:scale-98 transition-transform" @click="openGoogleMap(event)">
                                 <div class="flex justify-between items-start">
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-2 mb-1">
@@ -376,7 +333,7 @@
 
         createApp({
             setup() {
-                const STORAGE_KEY = 'remi_trip_v42_data';
+                const STORAGE_KEY = 'remi_trip_v40_data';
                 const currentTab = ref('schedule');
                 const activePopup = ref(null);
                 const currentDateIndex = ref(0);
@@ -421,7 +378,7 @@
                     { id: '5-2', date: '2026-02-15', time: '11:00', title: 'Virgin Island', locationName: '處女島', type: 'spot', lat: 9.556, lng: 123.730 },
                     { id: '5-4', date: '2026-02-15', time: '14:30', title: 'Check in Villa', locationName: 'Villa Kalachuchi (Danao)', type: 'hotel', note: '無早餐有廚房', lat: 9.556, lng: 123.760 },
                     { id: '5-5', date: '2026-02-15', time: '18:00', title: '晚餐 Luna Rossa', locationName: '素食義大利菜', type: 'food', tag: '推薦', lat: 9.553, lng: 123.762 },
-                    { id: '6-0', date: '2026-02-16', time: '09:00', title: '包車一日遊', locationName: 'Bohol 內陸', type: 'transport', lat: 9.696, lng: 124.120 },
+                    { id: '6-0', date: '2026-02-16', time: '09:00', title: '包車一日遊', locationName: 'Bohol 內陸', type: 'transport', tag: '6500p', lat: 9.696, lng: 124.120 },
                     { id: '6-2', date: '2026-02-16', time: '10:00', title: '眼鏡猴 & 人造林', locationName: 'Tarsier Area', type: 'spot', lat: 9.696, lng: 124.120 },
                     { id: '6-3', date: '2026-02-16', time: '12:00', title: '午餐 Rio Verde', locationName: '漂流竹筏', type: 'food', lat: 9.623, lng: 124.019 },
                     { id: '6-4', date: '2026-02-16', time: '14:00', title: '巧克力山', locationName: 'Chocolate Hills', type: 'spot', lat: 9.829, lng: 124.139 },
@@ -470,28 +427,11 @@
                 const currentCity = computed(() => currentDateIndex.value < 2 ? 'Cebu' : currentDateIndex.value <= 5 ? 'Bohol' : 'Manila');
                 const currentWeather = computed(() => ({ temp: 30, feels_like: 34, icon: 'sun' }));
                 const calcTWD = computed(() => { const v = parseFloat(calcPHP.value); return isNaN(v) ? 0 : Math.round(v * 0.56); });
-                const weather = ref({ temp: '--', feels_like: '--', rainProb: '--', icon: 'sun', isRainy: false });
-
-                const fetchWeather = async () => {
-                    const d = tripDays[currentDateIndex.value];
-                    try {
-                        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${d.lat}&longitude=${d.lng}&current=temperature_2m,apparent_temperature,precipitation,weather_code,is_day&daily=precipitation_probability_max&timezone=auto`);
-                        const data = await res.json();
-                        const code = data.current.weather_code;
-                        const isRain = code >= 51;
-                        weather.value = {
-                            temp: Math.round(data.current.temperature_2m),
-                            feels_like: Math.round(data.current.apparent_temperature),
-                            rainProb: data.daily.precipitation_probability_max[0],
-                            icon: isRain ? 'cloud-rain' : (code <= 3 ? 'sun' : 'cloud'),
-                            isRainy: isRain
-                        };
-                    } catch(e) {}
-                };
 
                 const changeDate = (idx) => { currentDateIndex.value = idx; fetchWeather(); };
                 
-                const openMap = (e) => {
+                const openGoogleMap = (e) => {
+                    // 優先使用輸入的地址，其次地點名稱
                     const q = e.address || e.locationName || e.title;
                     if(q) window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`, '_blank');
                 };
@@ -522,9 +462,27 @@
                 };
 
                 const deleteEvent = (id) => { if(confirm('確定刪除？')) { events.value = events.value.filter(i => i.id !== id); saveToLocal(); }};
-                const handleImageError = (e) => e.target.src = 'https://images.unsplash.com/photo-1595130456565-5c1a7044033b?q=80&w=800';
+                
+                // Weather
+                const weather = ref({ temp: '--', feels_like: '--', rainProb: '--', icon: 'sun', isRainy: false });
+                const fetchWeather = async () => {
+                    const d = tripDays[currentDateIndex.value];
+                    try {
+                        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${d.lat}&longitude=${d.lng}&current=temperature_2m,apparent_temperature,precipitation,weather_code,is_day&daily=precipitation_probability_max&timezone=auto`);
+                        const data = await res.json();
+                        const code = data.current.weather_code;
+                        const isRain = code >= 51;
+                        weather.value = {
+                            temp: Math.round(data.current.temperature_2m),
+                            feels_like: Math.round(data.current.apparent_temperature),
+                            rainProb: data.daily.precipitation_probability_max[0],
+                            icon: isRain ? 'cloud-rain' : (code <= 3 ? 'sun' : 'cloud'),
+                            isRainy: isRain
+                        };
+                    } catch(e) {}
+                };
 
-                // Map Logic (Robust Force Re-render)
+                // Map Logic
                 let map = null;
                 let markersLayer = null;
 
@@ -559,22 +517,8 @@
                 const fitBounds = () => updateMapMarkers();
 
                 const switchTab = (tabId) => {
-                    if(tabId === 'map') {
-                        currentTab.value = 'schedule'; // Map is a layer on top of schedule
-                        setTimeout(() => {
-                             const layer = document.querySelector('.map-layer');
-                             if(layer) layer.classList.add('active');
-                             forceInitMap();
-                        }, 10);
-                    } else {
-                        const layer = document.querySelector('.map-layer');
-                        if(layer) layer.classList.remove('active');
-                    }
-                };
-                
-                const closeMapLayer = () => {
-                    const layer = document.querySelector('.map-layer');
-                    if(layer) layer.classList.remove('active');
+                    currentTab.value = tabId;
+                    if(tabId === 'map') forceInitMap();
                 };
 
                 // Helpers
@@ -587,19 +531,19 @@
                 onMounted(() => { 
                     lucide.createIcons();
                     fetchWeather();
-                    window.addEventListener('firebase-ready', () => {});
                 });
                 
-                watch([currentDateIndex, activePopup], () => {
+                watch([currentTab, currentDateIndex, activePopup], () => {
                     nextTick(() => lucide.createIcons());
+                    if(currentTab.value === 'map') forceInitMap();
                 });
 
                 return {
-                    currentTab, activePopup, currentDateIndex, currentDayEvents, tripDays, changeDate, openMap, switchTab, closeMapLayer,
+                    currentTab, activePopup, currentDateIndex, currentDayEvents, tripDays, changeDate, openGoogleMap, switchTab,
                     saveEvent, deleteEvent, openPopup, closePopup, openAddModal, initMap: forceInitMap, locateUser, fitBounds,
                     getCategoryName, getCategoryColor, getCategoryBadgeStyle, getCategoryIcon, currentWeather, currentCity, 
                     calcPHP, calcTWD, showEventModal, formEvent, resetToDefault,
-                    shoppingList, formShopping, addShopping, deleteItem, handleImageError
+                    shoppingList, formShopping, addShopping, deleteItem
                 };
             }
         }).mount('#app');
