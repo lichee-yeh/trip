@@ -1,21 +1,401 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remi's Philippines Adventure Trip</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Remi's 菲律賓大冒險</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { 
+            font-family: 'Noto Sans TC', sans-serif; 
+            background-color: #A29BFE; 
+            background-image: radial-gradient(#6C5CE7 20%, transparent 20%), radial-gradient(#6C5CE7 20%, transparent 20%);
+            background-position: 0 0, 10px 10px;
+            background-size: 20px 20px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        
+        .game-boy-container {
+            width: 100%;
+            max-width: 420px;
+            height: 95vh;
+            max-height: 850px;
+            background-color: #FDCB6E;
+            border: 4px solid #2D3436;
+            border-radius: 30px;
+            box-shadow: 10px 10px 0px 0px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .game-header {
+            background-color: #FF7675;
+            padding: 15px;
+            border-bottom: 4px solid #2D3436;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+
+        .card-stage {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            position: relative;
+            background-color: #fff;
+            background-image: linear-gradient(#f0f0f0 1px, transparent 1px), linear-gradient(90deg, #f0f0f0 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .pop-card {
+            background: white;
+            border: 3px solid #2D3436;
+            border-radius: 20px;
+            box-shadow: 6px 6px 0px #2D3436;
+            margin-bottom: 20px;
+            overflow: hidden;
+            transition: transform 0.2s;
+        }
+        
+        .pop-card-image {
+            height: 140px;
+            background-color: #dfe6e9;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .pop-card-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .pop-card-title {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(45, 52, 54, 0.9);
+            color: #FAB1A0;
+            padding: 5px 10px;
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+        }
+
+        .option-btn {
+            background: white;
+            border: 2px solid #2D3436;
+            border-radius: 15px;
+            padding: 12px;
+            margin-bottom: 12px;
+            box-shadow: 4px 4px 0px #2D3436;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.1s;
+            cursor: pointer;
+        }
+        
+        .option-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0px #2D3436;
+        }
+
+        .icon-box {
+            width: 45px;
+            height: 45px;
+            border: 2px solid #2D3436;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            flex-shrink: 0;
+        }
+
+        .game-controls {
+            background-color: #2D3436;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            background-color: #6C5CE7;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            box-shadow: 0 4px 0 #4834d4;
+            cursor: pointer;
+        }
+        
+        .nav-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #4834d4;
+        }
+
+        .date-display {
+            color: #FDCB6E;
+            font-family: 'Fredoka', sans-serif;
+            text-align: center;
+        }
+        
+        .date-main { font-size: 1.2rem; font-weight: bold; }
+        .date-sub { font-size: 0.8rem; opacity: 0.8; }
+
+        .secret-btn {
+            background: #e17055; 
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            padding: 10px;
+            border-radius: 12px;
+            border: 2px dashed rgba(255,255,255,0.5);
+            margin-top: 15px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        ::-webkit-scrollbar { display: none; }
+    </style>
 </head>
 <body>
-    <h1>Welcome to Remi's Philippines Adventure</h1>
-    <p>Join Remi on an unforgettable journey through the stunning landscapes of the Philippines. From beautiful beaches to vibrant cultural experiences, this trip has it all!</p>
-    <h2>Trip Highlights</h2>
-    <ul>
-        <li>Visit the famous beaches of Boracay</li>
-        <li>Explore the chocolate hills of Bohol</li>
-        <li>Snorkel in the clear waters of Palawan</li>
-        <li>Experience the local cuisine and culture</li>
-    </ul>
-    <h2>Contact</h2>
-    <p>If you want to know more about this adventure trip, feel free to <a href="mailto:remiadventures@example.com">contact us</a>!</p>
+
+    <div class="game-boy-container">
+        <div class="game-header">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-white border-2 border-black flex items-center justify-center overflow-hidden">
+                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Remi&backgroundColor=ffdfbf" alt="Remi">
+                </div>
+                <div>
+                    <div class="font-black text-sm uppercase text-white tracking-widest">PLAYER</div>
+                    <div class="font-bold text-black text-xs bg-[#FDCB6E] px-2 rounded-full inline-block">REMI (4y)</div>
+                </div>
+            </div>
+            <div class="flex gap-1">
+                <div class="w-3 h-3 rounded-full bg-[#00b894] border border-black"></div>
+                <div class="w-3 h-3 rounded-full bg-[#e17055] border border-black"></div>
+            </div>
+        </div>
+
+        <div class="h-2 w-full bg-[#2D3436]">
+            <div id="progressBar" class="h-full bg-[#00CEC9] transition-all duration-300" style="width: 12.5%"></div>
+        </div>
+
+        <div id="gameContent" class="card-stage">
+        </div>
+
+        <div class="game-controls">
+            <button onclick="changeDay(-1)" class="nav-btn bg-[#d63031] shadow-[#c0392b]"><i data-lucide="arrow-left"></i></button>
+            <div class="date-display">
+                <div id="dayLabel" class="date-sub">LEVEL 1</div>
+                <div id="dateLabel" class="date-main">2/11</div>
+            </div>
+            <button onclick="changeDay(1)" class="nav-btn bg-[#00b894] shadow-[#00947e]"><i data-lucide="arrow-right"></i></button>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        const tripData = [
+            {
+                date: "2/11 (二)",
+                level: "LEVEL 1",
+                title: "宿霧登陸戰",
+                img: "https://images.unsplash.com/photo-1594998468763-71408848a60c?w=600&q=80",
+                color: "bg-[#74b9ff]",
+                tasks: [
+                    { type: "food", icon: "🥞", title: "午餐吃什麼？", desc: "Abaca Baking (Ayala Center)", tag: "4.4⭐" },
+                    { type: "spot", icon: "📸", title: "晚餐大冒險", desc: "The Pyramid 金字塔餐廳", tag: "IT Park" },
+                    { type: "hotel", icon: "🏨", title: "住宿基地", desc: "Parklane International Hotel", tag: "Check-in" }
+                ],
+                secret: "💡 提示：記得在 Ayala 商場換錢，匯率最好！"
+            },
+            {
+                date: "2/12 (三)",
+                level: "LEVEL 2",
+                title: "魚魚與古蹟",
+                img: "https://images.unsplash.com/photo-1575825700757-074472f88d2d?w=600&q=80",
+                color: "bg-[#a29bfe]",
+                tasks: [
+                    { type: "spot", icon: "🐠", title: "海底總動員", desc: "Cebu Ocean Park", tag: "09:00" },
+                    { type: "food", icon: "🍽️", title: "午餐在水裡吃", desc: "Aqua Dining 海底隧道餐廳", tag: "需預約" },
+                    { type: "food", icon: "🥩", title: "晚餐吃牛排", desc: "Texas Roadhouse (SM Seaside)", tag: "4.8⭐" }
+                ],
+                secret: "💡 密技：Texas 的麵包可以無限續加，小孩超愛！"
+            },
+            {
+                date: "2/13 (四)",
+                level: "LEVEL 3",
+                title: "前進薄荷島",
+                img: "https://images.unsplash.com/photo-1621255531388-7201c7d24266?w=600&q=80",
+                color: "bg-[#ff7675]",
+                tasks: [
+                    { type: "transport", icon: "🚢", title: "搭船任務", desc: "Ocean Jet (11:40出發)", tag: "2hr" },
+                    { type: "hotel", icon: "🏨", title: "入住度假村", desc: "Best Western Plus (Alona)", tag: "熱鬧區" },
+                    { type: "food", icon: "🍕", title: "晚餐義式風", desc: "Giuseppe Pizzeria", tag: "非中式" }
+                ],
+                secret: "💡 提醒：碼頭會有很多人想幫忙提行李要小費，請堅定拒絕！"
+            },
+            {
+                date: "2/14 (五)",
+                level: "LEVEL 4",
+                title: "沙丁魚 & 網美",
+                img: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=600&q=80",
+                color: "bg-[#55efc4]",
+                tasks: [
+                    { type: "spot", icon: "🧜‍♀️", title: "沙丁魚風暴", desc: "Napaling Reef 水下攝影", tag: "09:00" },
+                    { type: "food", icon: "🥥", title: "必吃網美店", desc: "Ubeco 韓系咖哩 (就在旁邊)", tag: "🏆 首選" },
+                    { type: "spot", icon: "🏎️", title: "陸上探險", desc: "Zipline 空中飛人 / ATV", tag: "下午" },
+                    { type: "food", icon: "🌿", title: "森林系晚餐", desc: "Mist (有溜滑梯)", tag: "需訂位" }
+                ],
+                secret: "💡 重要：Ubeco 和 Mist 人很多，請飯店櫃檯務必幫忙訂位！"
+            },
+            {
+                date: "2/15 (六)",
+                level: "LEVEL 5",
+                title: "海豚 & 搬家",
+                img: "https://images.unsplash.com/photo-1570535265582-892257253573?w=600&q=80",
+                color: "bg-[#fd79a8]",
+                tasks: [
+                    { type: "spot", icon: "🐬", title: "早起追海豚", desc: "06:00 出海 + 大斷層", tag: "早起" },
+                    { type: "hotel", icon: "🏨", title: "搬新家", desc: "Villa Kalachuchi (Danao)", tag: "安靜區" },
+                    { type: "food", icon: "🍝", title: "晚餐吃素", desc: "Luna Rossa 義大利餐廳", tag: "清爽" }
+                ],
+                secret: "💡 裝備：今天整天都在海上，防曬乳要塗厚一點！"
+            },
+            {
+                date: "2/16 (日)",
+                level: "LEVEL 6",
+                title: "猴子與巧克力",
+                img: "https://images.unsplash.com/photo-1590418606746-018840f9cd0f?w=600&q=80",
+                color: "bg-[#e17055]",
+                tasks: [
+                    { type: "spot", icon: "🍫", title: "巧克力山", desc: "世界奇景 + 眼鏡猴", tag: "包車" },
+                    { type: "food", icon: "🍦", title: "必吃冰淇淋", desc: "Bohol Bee Farm (蜜蜂農場)", tag: "海景" }
+                ],
+                secret: "💡 伴手禮：蜜蜂農場的木薯片(Cassava Chips)非常好吃！"
+            },
+            {
+                date: "2/17 (一)",
+                level: "LEVEL 7",
+                title: "返回馬尼拉",
+                img: "https://images.unsplash.com/photo-1536768138549-0414704e9c70?w=600&q=80",
+                color: "bg-[#0984e3]",
+                tasks: [
+                    { type: "transport", icon: "✈️", title: "大移動", desc: "船回宿霧 -> 飛機去馬尼拉", tag: "20:00抵" },
+                    { type: "food", icon: "🍔", title: "晚餐簡單吃", desc: "Shake Shack 或 Denny's", tag: "休息" },
+                    { type: "hotel", icon: "🏨", title: "最後住宿", desc: "Uptown Parksuites (BGC)", tag: "信義區" }
+                ],
+                secret: "💡 休息：今天交通時間很長，晚餐不要排大餐，早點睡！"
+            },
+            {
+                date: "2/18 (二)",
+                level: "LEVEL 8",
+                title: "完美句點",
+                img: "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80",
+                color: "bg-[#6c5ce7]",
+                tasks: [
+                    { type: "spot", icon: "🔬", title: "科學博物館", desc: "The Mind Museum", tag: "溜小孩" },
+                    { type: "food", icon: "🏆", title: "最後的饗宴", desc: "Mamou Meats 頂級牛排", tag: "5.0⭐" },
+                    { type: "transport", icon: "✈️", title: "回家囉", desc: "19:15 飛機回台北", tag: "ByeBye" }
+                ],
+                secret: "💡 必點：Mamou 的松露義大利麵是這趟旅程的冠軍！"
+            }
+        ];
+
+        let currentIndex = 0;
+
+        function renderDay(index) {
+            const data = tripData[index];
+            const content = document.getElementById('gameContent');
+            const dayLabel = document.getElementById('dayLabel');
+            const dateLabel = document.getElementById('dateLabel');
+            const progressBar = document.getElementById('progressBar');
+
+            dayLabel.innerText = data.level;
+            dateLabel.innerText = data.date;
+            progressBar.style.width = \\`${((index + 1) / tripData.length) * 100}%\`;
+
+            const tasksHtml = data.tasks.map(task => {
+                let iconColor = "bg-white";
+                if(task.type === 'food') iconColor = "bg-[#FF7675]";
+                if(task.type === 'spot') iconColor = "bg-[#74b9ff]";
+                if(task.type === 'transport') iconColor = "bg-[#ffeaa7]";
+                if(task.type === 'hotel') iconColor = "bg-[#a29bfe]";
+
+                return `
+                <div class="option-btn">
+                    <div class="icon-box ${iconColor}">
+                        ${task.icon}
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between">
+                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">${task.title}</span>
+                            <span class="text-[10px] font-bold bg-black text-[#FDCB6E] px-1 rounded">${task.tag}</span>
+                        </div>
+                        <div class="font-bold text-slate-800 text-sm leading-tight mt-1">${task.desc}</div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+
+            content.innerHTML = `
+                <div class="pop-card animate-fade-in-up">
+                    <div class="pop-card-image">
+                        <img src="${data.img}" alt="${data.title}">
+                        <div class="pop-card-title">${data.title}</div>
+                    </div>
+                    <div class="p-4 bg-white">
+                         ${tasksHtml}
+                         <div onclick="this.innerText='${data.secret}'" class="secret-btn hover:bg-[#d63031] transition-colors">
+                            🤫 點我看本日密技
+                         </div>
+                    </div>
+                </div>
+            `;
+            
+            lucide.createIcons();
+        }
+
+        function changeDay(direction) {
+            const newIndex = currentIndex + direction;
+            if (newIndex >= 0 && newIndex < tripData.length) {
+                currentIndex = newIndex;
+                renderDay(currentIndex);
+            }
+        }
+
+        renderDay(0);
+
+        const style = document.createElement('style');
+        style.innerHTML = `
+            .animate-fade-in-up { animation: fadeInUp 0.3s ease-out; }
+            @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        `;
+        document.head.appendChild(style);
+
+    </script>
 </body>
 </html>
