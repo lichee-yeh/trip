@@ -1,10 +1,9 @@
-<!-- Version: v17.0 (2026 Remi Trip Final - Map Fixed & Dynamic Header) -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Remi's 2026 Trip</title>
+    <title>Remi's 2026 Trip v19.0</title>
     
     <!-- 核心庫 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -36,10 +35,9 @@
             const db = getFirestore(app);
             window.db = db;
             window.fireOps = { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch };
-            // 延遲發送 Ready 事件
             setTimeout(() => window.dispatchEvent(new Event('firebase-ready')), 800);
         } catch (e) {
-            console.log("Firebase init error (Offline mode)");
+            console.log("Firebase init error (Offline mode active)");
         }
     </script>
 
@@ -48,8 +46,8 @@
             theme: {
                 extend: {
                     colors: { 
-                        primary: '#0D9488', 
-                        secondary: '#F59E0B', 
+                        primary: '#0D9488', // Teal-600
+                        secondary: '#F59E0B', // Amber-500
                         bg: '#F8FAFC', 
                     },
                     fontFamily: { 
@@ -79,7 +77,8 @@
 
         /* 樣式優化 */
         .date-btn-active { background-color: #0D9488; color: white; transform: scale(1.05); box-shadow: 0 4px 10px rgba(13, 148, 136, 0.3); border: none;}
-        .date-btn-inactive { background-color: white; color: #94A3B8; border: 1px solid #E2E8F0; }
+        .date-btn-inactive { background-color: rgba(255,255,255,0.9); color: #64748B; border: 1px solid rgba(255,255,255,0.5); backdrop-filter: blur(4px); }
+        .boarding-pass { background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%); color: white; position: relative; border-radius: 16px; }
         
         /* Header 圖片背景 */
         .header-bg {
@@ -90,7 +89,7 @@
             border-bottom-right-radius: 35px;
             box-shadow: 0 10px 40px -10px rgba(0,0,0,0.2);
             z-index: 10;
-            background-color: #334155; /* Fallback color */
+            background-color: #334155;
         }
         .header-image {
             width: 100%; height: 100%; object-fit: cover;
@@ -118,7 +117,7 @@
             top: 0;
             left: 0;
             z-index: 1;
-            background-color: #e5e7eb; /* 灰色背景 */
+            background-color: #e5e7eb;
         }
 
         /* 地圖標記樣式 */
@@ -138,6 +137,9 @@
     </style>
 </head>
 <body class="h-screen flex flex-col font-sans text-slate-700 overflow-hidden bg-slate-50">
+
+    <!-- Version Label -->
+    <div class="fixed top-0 left-0 bg-red-600 text-white text-[10px] font-bold px-3 py-1.5 z-[9999] rounded-br-lg shadow-md font-mono">v19.0</div>
 
     <div id="app" class="flex flex-col h-full max-w-md mx-auto bg-slate-50 relative shadow-2xl">
 
@@ -290,7 +292,7 @@
         </main>
 
         <!-- Floating Add Button -->
-        <button v-if="currentTab==='schedule'" @click="showEventModal=true" class="fixed bottom-24 right-6 w-14 h-14 bg-secondary rounded-full shadow-lg text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-30">
+        <button v-if="currentTab==='schedule'" @click="openAddModal" class="fixed bottom-24 right-6 w-14 h-14 bg-secondary rounded-full shadow-lg text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-30">
             <i data-lucide="plus" class="w-8 h-8"></i>
         </button>
 
@@ -512,13 +514,21 @@
                 const changeDate = (idx) => currentDateIndex.value = idx;
                 const openMap = (q) => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`, '_blank');
                 
+                const openAddModal = () => {
+                    formEvent.value = {
+                        date: tripDays[currentDateIndex.value].date,
+                        time: '12:00', type: 'spot', title: '', locationName: '', note: ''
+                    };
+                    showEventModal.value = true;
+                };
+
                 const saveEvent = () => {
                     events.value.push({...formEvent.value, id: Date.now(), date: tripDays[currentDateIndex.value].date});
                     showEventModal.value = false;
                     // Background sync to Firebase can happen here
                     if (window.fireOps) {
                         const { addDoc, collection } = window.fireOps;
-                        addDoc(collection(window.db, 'events_v12'), {...formEvent.value, date: tripDays[currentDateIndex.value].date});
+                        addDoc(collection(window.db, 'events_v19'), {...formEvent.value, date: tripDays[currentDateIndex.value].date});
                     }
                 };
 
@@ -546,17 +556,23 @@
                 const updateMapMarkers = () => {
                     if (!map || !markersLayer) return;
                     markersLayer.clearLayers();
-                    const dayEvents = events.value.filter(e => e.lat && e.lng);
-                    const latlngs = [];
-                    dayEvents.forEach((e, idx) => {
-                        const point = [e.lat, e.lng];
-                        latlngs.push(point);
-                        const icon = L.divIcon({ className: 'custom-div-icon', html: idx + 1, iconSize: [24, 24] });
-                        L.marker(point, { icon }).bindPopup(e.title).addTo(markersLayer);
-                    });
-                    if (latlngs.length > 0) {
+                    const dayEvents = events.value.filter(e => e.lat && e.lng); // Show all markers or just current day? Let's show all for overview
+                    // Actually, showing current day markers makes more sense for context
+                    const currentDayEvts = events.value.filter(e => e.date === tripDays[currentDateIndex.value].date && e.lat && e.lng);
+                    
+                    if (currentDayEvts.length > 0) {
+                        const latlngs = [];
+                        currentDayEvts.forEach((e, idx) => {
+                            const point = [e.lat, e.lng];
+                            latlngs.push(point);
+                            const icon = L.divIcon({ className: 'custom-div-icon', html: idx + 1, iconSize: [24, 24] });
+                            L.marker(point, { icon }).bindPopup(e.title).addTo(markersLayer);
+                        });
                         const bounds = L.latLngBounds(latlngs);
                         map.fitBounds(bounds, { padding: [50, 50] });
+                    } else {
+                        // Fallback view
+                        map.setView([10.3157, 123.8854], 10);
                     }
                 };
                 
@@ -604,13 +620,16 @@
                     window.addEventListener('firebase-ready', () => {
                         const { collection, onSnapshot, query } = window.fireOps;
                         const db = window.db;
-                        const q = query(collection(db, 'events_v12'));
+                        // Use a new collection to ensure clean state or sync
+                        const q = query(collection(db, 'events_v19'));
                         
                         onSnapshot(q, (snap) => {
                             if (!snap.empty) {
-                                // Can merge or replace here. For now, offline-first, so we use local data as base.
+                                // Optional: Update local events from cloud if needed
+                                // events.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                             } else {
-                                initialItinerary.forEach(item => window.fireOps.addDoc(collection(db, 'events_v12'), item));
+                                // Seed cloud
+                                initialItinerary.forEach(item => window.fireOps.addDoc(collection(db, 'events_v19'), item));
                             }
                         });
                     });
@@ -621,7 +640,10 @@
                     if(currentTab.value === 'map') {
                         nextTick(() => {
                             if(!map) initMap();
-                            else { map.invalidateSize(); updateMapMarkers(); }
+                            else { 
+                                map.invalidateSize(); 
+                                updateMapMarkers(); 
+                            }
                         });
                     }
                 });
@@ -630,7 +652,7 @@
                     currentTab, activePopup, currentDateIndex, currentDayEvents, tripDays,
                     changeDate, openMap, switchTab,
                     saveEvent, deleteEvent, isEditing: false,
-                    initMap, locateUser, fitBounds, openAddModal: () => showEventModal.value = true, editEvent: () => {},
+                    initMap, locateUser, fitBounds, openAddModal, editEvent: () => {},
                     getCategoryName, getCategoryColor, getCategoryBadgeStyle, getCategoryIcon,
                     currentWeather, currentCity, currentHeaderImage, firebaseReady: ref(true)
                 };
