@@ -1,4 +1,4 @@
-<!-- Version: v45.0 (Safe Start, No v-cloak, Immediate Render) -->
+<!-- Version: v44.0 (Removed Bottom Nav, Map Button in Header, Fullscreen UI) -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -16,42 +16,62 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        
+        const firebaseConfig = {
+            apiKey: "AIzaSyA1JHrkPbANS-g7X8OudpD0w819ZXA8-7A",
+            authDomain: "family-trip-2026-1c43d.firebaseapp.com",
+            projectId: "family-trip-2026-1c43d",
+            storageBucket: "family-trip-2026-1c43d.firebasestorage.app",
+            messagingSenderId: "157512457202",
+            appId: "1:157512457202:web:b211df6298c0057e62e96b",
+            measurementId: "G-LDQW10LQZ4"
+        };
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            window.db = getFirestore(app);
+            window.fireOps = { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch };
+            setTimeout(() => window.dispatchEvent(new Event('firebase-ready')), 800);
+        } catch (e) {
+            console.log("Firebase init error (Offline mode)");
+        }
+    </script>
+
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    colors: { primary: '#0D9488', secondary: '#F59E0B', bg: '#F8FAFC' },
-                    fontFamily: { sans: ['Noto Sans TC', 'sans-serif'], en: ['Nunito', 'sans-serif'] },
-                    boxShadow: { 'card': '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }
+                    colors: { 
+                        primary: '#0D9488', // Teal-600
+                        secondary: '#F59E0B', // Amber-500
+                        bg: '#F8FAFC', 
+                    },
+                    fontFamily: { 
+                        sans: ['Noto Sans TC', 'sans-serif'],
+                        en: ['Nunito', 'sans-serif']
+                    },
+                    boxShadow: {
+                        'float': '0 4px 20px -2px rgba(13, 148, 136, 0.2)',
+                        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)'
+                    }
                 }
             }
         }
     </script>
     <style>
+        [v-cloak] { display: none !important; }
         body { background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         
-        /* 載入遮罩 */
-        #app-loading {
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: #F8FAFC; z-index: 9999;
-            display: flex; justify-content: center; align-items: center;
-            flex-direction: column; color: #0D9488;
-        }
-        
-        /* 底部導航 */
-        .bottom-nav {
-            position: fixed; bottom: 0; left: 0; right: 0;
-            background: rgba(255,255,255,0.98); border-top: 1px solid #E2E8F0;
-            padding-bottom: env(safe-area-inset-bottom);
-            height: calc(65px + env(safe-area-inset-bottom));
-            z-index: 50; display: flex; justify-content: space-around; align-items: center;
-        }
-
         /* 頂部 Header */
         .simple-header {
-            background: white;
-            padding-top: max(env(safe-area-inset-top), 16px);
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            padding-top: max(env(safe-area-inset-top), 20px);
             position: sticky; top: 0; z-index: 40;
             border-bottom: 1px solid #F1F5F9;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
@@ -61,13 +81,13 @@
         .date-btn-active { background-color: #0D9488; color: white; transform: scale(1.05); border: none; box-shadow: 0 4px 10px rgba(13,148,136,0.2); }
         .date-btn-inactive { background-color: #F1F5F9; color: #94A3B8; border: 1px solid transparent; }
 
-        /* 地圖圖層 */
+        /* 地圖圖層 - 全螢幕 */
         .map-layer {
-            position: fixed; top: 0; left: 0; right: 0; bottom: calc(65px + env(safe-area-inset-bottom));
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             z-index: 0; opacity: 0; pointer-events: none;
             background-color: #e5e7eb; transition: opacity 0.2s ease;
         }
-        .map-layer.active { z-index: 30; opacity: 1; pointer-events: auto; }
+        .map-layer.active { z-index: 60; opacity: 1; pointer-events: auto; }
         #map-container { width: 100%; height: 100%; }
 
         .custom-div-icon {
@@ -78,8 +98,8 @@
         
         /* FAB */
         .fab-btn {
-            position: fixed; bottom: calc(80px + env(safe-area-inset-bottom)); right: 20px;
-            width: 56px; height: 56px; background-color: #F59E0B; color: white;
+            position: fixed; bottom: 40px; right: 24px;
+            width: 60px; height: 60px; background-color: #F59E0B; color: white;
             border-radius: 50%; display: flex; align-items: center; justify-content: center;
             box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4); z-index: 40;
             transition: transform 0.2s;
@@ -117,13 +137,7 @@
 </head>
 <body class="h-screen flex flex-col font-sans text-slate-700 bg-slate-50">
 
-    <!-- Loading Screen (Vanilla JS removal) -->
-    <div id="app-loading">
-        <div class="animate-spin w-10 h-10 border-4 border-teal-200 border-t-teal-600 rounded-full mb-4"></div>
-        <p class="font-bold">載入中...</p>
-    </div>
-
-    <div id="app" class="flex flex-col w-full h-full max-w-md mx-auto relative shadow-2xl overflow-hidden bg-slate-50 h-screen hidden">
+    <div id="app" v-cloak class="flex flex-col w-full h-full max-w-md mx-auto relative shadow-2xl overflow-hidden bg-slate-50 h-screen">
 
         <!-- 1. Header & Nav -->
         <div class="simple-header shrink-0">
@@ -135,8 +149,11 @@
                     </p>
                 </div>
                 <div class="flex gap-2">
+                    <!-- 地圖按鈕 (移到這裡) -->
                     <button @click="switchTab('map')" class="w-9 h-9 rounded-full bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 active:scale-95 transition shadow-sm"><i data-lucide="map" class="w-4 h-4"></i></button>
+                    <!-- 資訊 -->
                     <button @click="openPopup('info')" class="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 active:scale-95 transition"><i data-lucide="info" class="w-4 h-4"></i></button>
+                    <!-- 購物 -->
                     <button @click="openPopup('shopping')" class="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 active:scale-95 transition"><i data-lucide="shopping-bag" class="w-4 h-4"></i></button>
                 </div>
             </div>
@@ -191,7 +208,7 @@
 
                         <div class="flex gap-4 relative">
                             <!-- Time & Dot -->
-                            <div class="flex flex-col items-center w-12 shrink-0 pt-1 z-10">
+                            <div class="flex flex-col items-center w-12 shrink-0 pt-1 z-10 bg-slate-50">
                                 <div class="w-3 h-3 rounded-full border-2 border-white shadow-md mb-1 ring-4 ring-slate-50" :class="getCategoryColor(event.type)"></div>
                                 <span class="text-xs font-bold text-slate-400 font-en bg-slate-50 px-1 rounded">{{ event.time }}</span>
                             </div>
@@ -248,18 +265,18 @@
 
             <!-- 地圖層 -->
             <div class="map-layer" :class="{'active': currentTab === 'map'}">
-                <button @click="switchTab('schedule')" class="absolute top-12 left-4 w-10 h-10 bg-white rounded-full shadow-lg z-[500] flex items-center justify-center text-slate-700 border border-slate-100">
+                <button @click="switchTab('schedule')" class="absolute top-4 left-4 w-10 h-10 bg-white rounded-full shadow-lg z-[500] flex items-center justify-center text-slate-700 border border-slate-100">
                     <i data-lucide="arrow-left" class="w-6 h-6"></i>
                 </button>
                 
                 <div id="map-container"></div>
                 
-                <div class="absolute bottom-24 right-4 flex flex-col gap-2 z-[400]">
+                <div class="absolute bottom-6 right-4 flex flex-col gap-2 z-[400]">
                      <button @click="forceInitMap" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:bg-slate-50"><i data-lucide="refresh-cw" class="w-6 h-6"></i></button>
                     <button @click="locateUser" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-teal-600 hover:bg-teal-50"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
                 </div>
                 
-                <div class="absolute top-12 right-4 bg-white/90 backdrop-blur rounded-xl px-4 py-2 shadow-lg z-[400] border border-white/50 text-center pointer-events-none">
+                <div class="absolute top-4 right-4 bg-white/90 backdrop-blur rounded-xl px-4 py-2 shadow-lg z-[400] border border-white/50 text-center pointer-events-none">
                      <p class="text-xs text-slate-500 font-bold">{{ tripDays[currentDateIndex].dateShort }} 行程</p>
                 </div>
             </div>
@@ -270,18 +287,6 @@
         <button v-if="currentTab==='schedule'" @click="openAddModal" class="fab-btn">
             <i data-lucide="plus" class="w-8 h-8"></i>
         </button>
-
-        <!-- Bottom Navigation -->
-        <nav class="bottom-nav shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-            <button @click="switchTab('schedule')" class="flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform" :class="currentTab === 'schedule' ? 'text-teal-600' : 'text-slate-400'">
-                <i data-lucide="calendar-days" class="w-6 h-6 mb-1" :class="{'fill-teal-100': currentTab === 'schedule'}"></i>
-                <span class="text-[10px] font-bold">行程</span>
-            </button>
-            <button @click="switchTab('map')" class="flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform" :class="currentTab === 'map' ? 'text-teal-600' : 'text-slate-400'">
-                <i data-lucide="map" class="w-6 h-6 mb-1" :class="{'fill-teal-100': currentTab === 'map'}"></i>
-                <span class="text-[10px] font-bold">地圖</span>
-            </button>
-        </nav>
 
         <!-- === POPUPS === -->
         
@@ -371,7 +376,7 @@
 
         createApp({
             setup() {
-                const STORAGE_KEY = 'remi_trip_v45_safe';
+                const STORAGE_KEY = 'remi_trip_v42_data';
                 const currentTab = ref('schedule');
                 const activePopup = ref(null);
                 const currentDateIndex = ref(0);
@@ -381,14 +386,14 @@
                 const formShopping = ref({ name: '' });
 
                 const tripDays = [
-                    { date: '2026-02-11', dayShort: '週三', dayNum: '11', highlight: '抵達宿霧', dateShort: '2/11', location: '宿霧市區' },
-                    { date: '2026-02-12', dayShort: '週四', dayNum: '12', highlight: '市區古蹟', dateShort: '2/12', location: '宿霧市區' },
-                    { date: '2026-02-13', dayShort: '週五', dayNum: '13', highlight: '前往薄荷', dateShort: '2/13', location: '薄荷島' },
-                    { date: '2026-02-14', dayShort: '週六', dayNum: '14', highlight: '沙丁魚', dateShort: '2/14', location: '薄荷島' },
-                    { date: '2026-02-15', dayShort: '週日', dayNum: '15', highlight: '跳島海龜', dateShort: '2/15', location: '薄荷島' },
-                    { date: '2026-02-16', dayShort: '週一', dayNum: '16', highlight: '巧克力山', dateShort: '2/16', location: '薄荷島' },
-                    { date: '2026-02-17', dayShort: '週二', dayNum: '17', highlight: '回馬尼拉', dateShort: '2/17', location: '馬尼拉' },
-                    { date: '2026-02-18', dayShort: '週三', dayNum: '18', highlight: 'BGC & 返台', dateShort: '2/18', location: '馬尼拉' }
+                    { date: '2026-02-11', dayShort: '週三', dayNum: '11', highlight: '抵達宿霧', dateShort: '2/11', location: '宿霧市區', lat: 10.3157, lng: 123.8854 },
+                    { date: '2026-02-12', dayShort: '週四', dayNum: '12', highlight: '市區古蹟', dateShort: '2/12', location: '宿霧市區', lat: 10.3157, lng: 123.8854 },
+                    { date: '2026-02-13', dayShort: '週五', dayNum: '13', highlight: '前往薄荷', dateShort: '2/13', location: '薄荷島', lat: 9.6500, lng: 123.8500 },
+                    { date: '2026-02-14', dayShort: '週六', dayNum: '14', highlight: '沙丁魚', dateShort: '2/14', location: '薄荷島', lat: 9.6500, lng: 123.8500 },
+                    { date: '2026-02-15', dayShort: '週日', dayNum: '15', highlight: '跳島海龜', dateShort: '2/15', location: '薄荷島', lat: 9.6500, lng: 123.8500 },
+                    { date: '2026-02-16', dayShort: '週一', dayNum: '16', highlight: '巧克力山', dateShort: '2/16', location: '薄荷島', lat: 9.6500, lng: 123.8500 },
+                    { date: '2026-02-17', dayShort: '週二', dayNum: '17', highlight: '回馬尼拉', dateShort: '2/17', location: '馬尼拉', lat: 14.5547, lng: 121.0244 },
+                    { date: '2026-02-18', dayShort: '週三', dayNum: '18', highlight: 'BGC & 返台', dateShort: '2/18', location: '馬尼拉', lat: 14.5547, lng: 121.0244 }
                 ];
 
                 const initialItinerary = [
@@ -467,7 +472,6 @@
                 const calcTWD = computed(() => { const v = parseFloat(calcPHP.value); return isNaN(v) ? 0 : Math.round(v * 0.56); });
                 const weather = ref({ temp: '--', feels_like: '--', rainProb: '--', icon: 'sun', isRainy: false });
 
-                // Weather API
                 const fetchWeather = async () => {
                     const d = tripDays[currentDateIndex.value];
                     try {
@@ -518,6 +522,7 @@
                 };
 
                 const deleteEvent = (id) => { if(confirm('確定刪除？')) { events.value = events.value.filter(i => i.id !== id); saveToLocal(); }};
+                const handleImageError = (e) => e.target.src = 'https://images.unsplash.com/photo-1595130456565-5c1a7044033b?q=80&w=800';
 
                 // Map Logic (Robust Force Re-render)
                 let map = null;
@@ -554,8 +559,22 @@
                 const fitBounds = () => updateMapMarkers();
 
                 const switchTab = (tabId) => {
-                    currentTab.value = tabId;
-                    if(tabId === 'map') forceInitMap();
+                    if(tabId === 'map') {
+                        currentTab.value = 'schedule'; // Map is a layer on top of schedule
+                        setTimeout(() => {
+                             const layer = document.querySelector('.map-layer');
+                             if(layer) layer.classList.add('active');
+                             forceInitMap();
+                        }, 10);
+                    } else {
+                        const layer = document.querySelector('.map-layer');
+                        if(layer) layer.classList.remove('active');
+                    }
+                };
+                
+                const closeMapLayer = () => {
+                    const layer = document.querySelector('.map-layer');
+                    if(layer) layer.classList.remove('active');
                 };
 
                 // Helpers
@@ -568,25 +587,19 @@
                 onMounted(() => { 
                     lucide.createIcons();
                     fetchWeather();
-                    
-                    // Remove loading screen when ready
-                    const loader = document.getElementById('app-loading');
-                    if(loader) loader.style.display = 'none';
-                    document.getElementById('app').classList.remove('hidden');
+                    window.addEventListener('firebase-ready', () => {});
                 });
                 
-                watch([currentTab, currentDateIndex, activePopup], () => {
+                watch([currentDateIndex, activePopup], () => {
                     nextTick(() => lucide.createIcons());
-                    if(currentTab.value === 'map') forceInitMap();
                 });
 
                 return {
-                    currentTab, activePopup, currentDateIndex, currentDayEvents, tripDays, changeDate, openMap, switchTab,
-                    saveEvent, deleteEvent, openPopup, closePopup, openAddModal, 
-                    initMap: forceInitMap, locateUser, fitBounds,
-                    getCategoryName, getCategoryColor, getCategoryBadgeStyle, getCategoryIcon, weather, 
+                    currentTab, activePopup, currentDateIndex, currentDayEvents, tripDays, changeDate, openMap, switchTab, closeMapLayer,
+                    saveEvent, deleteEvent, openPopup, closePopup, openAddModal, initMap: forceInitMap, locateUser, fitBounds,
+                    getCategoryName, getCategoryColor, getCategoryBadgeStyle, getCategoryIcon, currentWeather, currentCity, 
                     calcPHP, calcTWD, showEventModal, formEvent, resetToDefault,
-                    shoppingList, formShopping, addShopping, deleteItem
+                    shoppingList, formShopping, addShopping, deleteItem, handleImageError
                 };
             }
         }).mount('#app');
