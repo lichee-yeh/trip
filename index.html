@@ -1,4 +1,4 @@
-<!-- Version: v21.0 (Fixed: Rate Calc, Popup Icons, FAB Button) -->
+<!-- Version: v22.0 (Stable: Local-First Logic, Map Fix, Immediate UI) -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK (背景執行，不阻擋 UI) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -36,9 +36,9 @@
             const db = getFirestore(app);
             window.db = db;
             window.fireOps = { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch };
-            setTimeout(() => window.dispatchEvent(new Event('firebase-ready')), 800);
+            console.log("Firebase initialized in background");
         } catch (e) {
-            console.log("Firebase init error (Offline mode active)");
+            console.log("Offline mode");
         }
     </script>
 
@@ -73,13 +73,12 @@
             background: white; border-top: 1px solid #E2E8F0;
             padding-bottom: env(safe-area-inset-bottom);
             height: calc(60px + env(safe-area-inset-bottom));
-            z-index: 40; display: flex; justify-content: space-around; align-items: center;
+            z-index: 50; display: flex; justify-content: space-around; align-items: center;
         }
 
         /* 樣式優化 */
         .date-btn-active { background-color: #0D9488; color: white; transform: scale(1.05); box-shadow: 0 4px 10px rgba(13, 148, 136, 0.3); border: none;}
         .date-btn-inactive { background-color: white; color: #94A3B8; border: 1px solid #E2E8F0; }
-        .boarding-pass { background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%); color: white; position: relative; border-radius: 16px; }
         
         /* Header 圖片背景 */
         .header-bg {
@@ -101,16 +100,8 @@
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.6) 100%);
         }
-        
-        /* 行程卡片 */
-        .event-card {
-            background: white; border-radius: 24px;
-            box-shadow: var(--shadow-card);
-            border: 1px solid #F1F5F9;
-            position: relative; z-index: 10;
-        }
 
-        /* 地圖容器 */
+        /* 地圖容器 - 強制全螢幕 */
         #map-container {
             width: 100%;
             height: 100%;
@@ -144,7 +135,6 @@
         <!-- Header (只在行程頁顯示) -->
         <div v-show="currentTab === 'schedule'" class="header-bg shrink-0 relative">
             <div class="absolute inset-0 bg-slate-800">
-                <!-- 動態圖片綁定 -->
                 <img :src="currentHeaderImage" class="header-image opacity-90" @error="handleImageError">
             </div>
             <div class="header-overlay"></div>
@@ -158,13 +148,13 @@
 
             <!-- Floating Tabs (Top Right) -->
             <div class="absolute bottom-8 right-6 flex gap-3 z-20">
-                <button @click="activePopup='info'" class="w-12 h-12 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-teal-600 shadow-lg active:scale-95 transition">
+                <button @click="openPopup('info')" class="w-12 h-12 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-teal-600 shadow-lg active:scale-95 transition">
                     <i data-lucide="info" class="w-6 h-6"></i>
                 </button>
-                <button @click="activePopup='shopping'" class="w-12 h-12 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-teal-600 shadow-lg active:scale-95 transition">
+                <button @click="openPopup('shopping')" class="w-12 h-12 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-teal-600 shadow-lg active:scale-95 transition">
                     <i data-lucide="shopping-bag" class="w-6 h-6"></i>
                 </button>
-                <button @click="activePopup='expenses'" class="w-12 h-12 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-teal-600 shadow-lg active:scale-95 transition">
+                <button @click="openPopup('expenses')" class="w-12 h-12 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-teal-600 shadow-lg active:scale-95 transition">
                     <i data-lucide="coins" class="w-6 h-6"></i>
                 </button>
             </div>
@@ -225,7 +215,7 @@
                             </div>
 
                             <!-- Right: Info Card -->
-                            <div class="event-card flex-1 p-4 active:scale-98 transition-transform" @click="openMap(event.locationName || event.title)">
+                            <div class="bg-white rounded-2xl p-4 shadow-card border border-slate-100 flex-1 min-w-0 active:scale-98 transition-transform" @click="openMap(event.locationName || event.title)">
                                 <div class="flex justify-between items-start">
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-2 mb-1">
@@ -270,7 +260,6 @@
                     <!-- Empty State -->
                      <div v-if="currentDayEvents.length === 0" class="text-center py-10 text-slate-400">
                         <p class="text-sm">本日無預設行程</p>
-                        <button @click="forceInit" class="mt-4 text-xs text-teal-600 border border-teal-200 px-3 py-1 rounded-full">重置資料</button>
                     </div>
                 </div>
             </div>
@@ -278,9 +267,9 @@
             <!-- 2. Map Tab (Full Screen) -->
             <div v-show="currentTab === 'map'" class="h-full w-full relative">
                 <div id="map-container"></div>
+                <!-- Map Overlay Controls -->
                 <div class="absolute bottom-24 right-4 flex flex-col gap-2 z-[400]">
-                    <button @click="locateUser" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-teal-600 hover:bg-teal-50 border border-slate-100"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
-                    <button @click="fitBounds" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:bg-slate-50 border border-slate-100"><i data-lucide="maximize" class="w-6 h-6"></i></button>
+                    <button @click="initMap" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:bg-slate-50 border border-slate-100"><i data-lucide="refresh-cw" class="w-6 h-6"></i></button>
                 </div>
                 <div class="absolute top-4 left-4 right-4 bg-white/90 backdrop-blur rounded-xl p-3 shadow-lg z-[400] border border-white/50 text-center pointer-events-none">
                      <p class="text-xs text-slate-500">顯示行程：<span class="font-bold text-teal-600">{{ tripDays[currentDateIndex].dateShort }}</span></p>
@@ -289,8 +278,8 @@
 
         </main>
 
-        <!-- Floating Add Button (Fixed at App Root Level) -->
-        <button v-if="currentTab==='schedule'" @click="showEventModal=true" class="fixed bottom-24 right-6 w-14 h-14 bg-secondary rounded-full shadow-lg text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-[60]">
+        <!-- Floating Add Button -->
+        <button v-if="currentTab==='schedule'" @click="showEventModal=true" class="fixed bottom-24 right-6 w-14 h-14 bg-secondary rounded-full shadow-lg text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-40">
             <i data-lucide="plus" class="w-8 h-8"></i>
         </button>
 
@@ -313,12 +302,11 @@
             <div v-if="activePopup === 'info'" class="fixed inset-0 z-50 bg-slate-100 flex flex-col h-full w-full">
                 <div class="bg-white px-6 pt-12 pb-4 flex justify-between items-center shadow-sm">
                     <h2 class="text-xl font-black text-slate-800">旅遊資訊</h2>
-                    <button @click="activePopup = null" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    <button @click="closePopup" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"><i data-lucide="x" class="w-6 h-6"></i></button>
                 </div>
                 <div class="p-5 space-y-5 overflow-y-auto">
                     <!-- Rate -->
                     <div class="bg-teal-600 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
-                        <div class="absolute -right-5 -top-5 w-32 h-32 bg-white/20 rounded-full blur-2xl"></div>
                         <h3 class="font-bold mb-4 flex items-center"><i data-lucide="coins" class="w-5 h-5 mr-2"></i> 匯率換算</h3>
                         <div class="flex items-center gap-4 relative z-10">
                             <div class="flex-1">
@@ -332,46 +320,19 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Flights -->
-                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-                        <h3 class="font-bold text-slate-800 mb-3 flex items-center"><i data-lucide="plane" class="w-5 h-5 text-blue-500 mr-2"></i> 航班</h3>
-                         <div class="space-y-3">
-                            <div class="flex justify-between items-center bg-blue-50 p-3 rounded-xl border border-blue-100">
-                                <div><div class="text-xs text-blue-600 font-bold">2/11 去程</div><div class="font-black text-lg">TPE → CEB</div></div>
-                                <div class="text-right"><div class="text-xs text-slate-500">03:15</div><div class="font-mono font-bold text-slate-700">5J311</div></div>
-                            </div>
-                            <div class="flex justify-between items-center bg-orange-50 p-3 rounded-xl border border-orange-100">
-                                <div><div class="text-xs text-orange-600 font-bold">2/18 回程</div><div class="font-black text-lg">MNL → TPE</div></div>
-                                <div class="text-right"><div class="text-xs text-slate-500">23:35</div><div class="font-mono font-bold text-slate-700">5J310</div></div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </transition>
 
-        <!-- Shopping Popup -->
+        <!-- Shopping & Expenses Placeholders -->
         <transition name="popup">
-            <div v-if="activePopup === 'shopping'" class="fixed inset-0 z-50 bg-slate-50 flex flex-col h-full w-full">
+            <div v-if="['shopping', 'expenses'].includes(activePopup)" class="fixed inset-0 z-50 bg-slate-50 flex flex-col h-full w-full">
                 <div class="bg-white px-6 pt-12 pb-4 flex justify-between items-center shadow-sm">
-                    <h2 class="text-xl font-black text-slate-800">購物清單</h2>
-                    <button @click="activePopup = null" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    <h2 class="text-xl font-black text-slate-800">{{ activePopup === 'shopping' ? '購物清單' : '旅費記錄' }}</h2>
+                    <button @click="closePopup" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"><i data-lucide="x" class="w-6 h-6"></i></button>
                 </div>
                 <div class="p-5 flex items-center justify-center h-full text-slate-300">
-                    <p>尚無資料</p>
-                </div>
-            </div>
-        </transition>
-
-        <!-- Expenses Popup -->
-        <transition name="popup">
-            <div v-if="activePopup === 'expenses'" class="fixed inset-0 z-50 bg-slate-50 flex flex-col h-full w-full">
-                <div class="bg-white px-6 pt-12 pb-4 flex justify-between items-center shadow-sm">
-                    <h2 class="text-xl font-black text-slate-800">旅費記錄</h2>
-                    <button @click="activePopup = null" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"><i data-lucide="x" class="w-6 h-6"></i></button>
-                </div>
-                <div class="p-5 flex items-center justify-center h-full text-slate-300">
-                    <p>尚無資料</p>
+                    <p>開發中...</p>
                 </div>
             </div>
         </transition>
@@ -391,20 +352,11 @@
                             <select v-model="formEvent.type" class="input bg-white">
                                 <option value="spot">📍 景點</option>
                                 <option value="food">🍴 美食</option>
-                                <option value="hotel">🏨 住宿</option>
                                 <option value="transport">🚗 交通</option>
-                                <option value="note">⚠️ 備註</option>
                             </select>
                         </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-400 mb-1">名稱</label>
-                        <input v-model="formEvent.title" class="input" placeholder="名稱">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-400 mb-1">地點 (Google 導航用)</label>
-                        <input v-model="formEvent.locationName" placeholder="地點名稱" class="input">
-                    </div>
+                    <input v-model="formEvent.title" class="input" placeholder="名稱">
                     <div class="flex gap-2 mt-4">
                         <button @click="showEventModal=false" class="flex-1 bg-slate-100 py-3 rounded-xl font-bold text-slate-500">取消</button>
                         <button @click="saveEvent" class="flex-1 bg-teal-600 text-white py-3 rounded-xl font-bold">儲存</button>
@@ -425,12 +377,9 @@
                 const currentDateIndex = ref(0);
                 const calcPHP = ref('');
                 const showEventModal = ref(false);
-                const firebaseReady = ref(false);
                 
-                // Form
-                const formEvent = ref({ time: '12:00', title: '', locationName: '', type: 'food', tag: '', lat: null, lng: null });
+                const formEvent = ref({ time: '12:00', title: '', type: 'food' });
 
-                // Updated Images with High Quality Source
                 const tripDays = [
                     { date: '2026-02-11', dayShort: '週三', dayNum: '11', highlight: '抵達宿霧', dateShort: '2/11', location: '宿霧市區', image: 'https://images.unsplash.com/photo-1595130456565-5c1a7044033b?q=80&w=800&auto=format&fit=crop' },
                     { date: '2026-02-12', dayShort: '週四', dayNum: '12', highlight: '市區古蹟', dateShort: '2/12', location: '宿霧市區', image: 'https://images.unsplash.com/photo-1595130456565-5c1a7044033b?q=80&w=800&auto=format&fit=crop' },
@@ -442,84 +391,52 @@
                     { date: '2026-02-18', dayShort: '週三', dayNum: '18', highlight: 'BGC & 返台', dateShort: '2/18', location: '馬尼拉', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=800&auto=format&fit=crop' }
                 ];
 
-                // *** 內建資料 (核心數據) ***
                 const initialItinerary = [
-                    { id: '1-0', date: '2026-02-11', time: '03:15', title: '飛往馬尼拉 5J311', locationName: 'TPE T1 -> MNL T3', type: 'transport', tag: '轉機', note: '轉機需領行李，重掛。' },
-                    { id: '1-1', date: '2026-02-11', time: '05:45', title: '抵達馬尼拉 T3', locationName: 'MNL T3', type: 'note', tag: '領行李' },
-                    { id: '1-1-b', date: '2026-02-11', time: '07:00', title: '機場早餐', locationName: 'MNL T3 美食街', type: 'food', tag: 'Jollibee', lat: 14.512, lng: 121.015 },
-                    { id: '1-2', date: '2026-02-11', time: '10:50', title: '飛往宿霧 5J585', locationName: 'MNL T3 -> CEB', type: 'transport' },
-                    { id: '1-3', date: '2026-02-11', time: '12:00', title: '抵達宿霧 & Grab', locationName: 'Mactan Airport', type: 'transport', tag: '叫車', lat: 10.308, lng: 123.979 },
-                    { id: '1-4', date: '2026-02-11', time: '13:00', title: '飯店 Check-in', locationName: '宿務派克蘭國際大飯店', type: 'hotel', transportTime: '30 min', note: '寄放行李、稍作休息' },
-                    { id: '1-5', date: '2026-02-11', time: '14:00', title: 'Mall 附近換錢', locationName: 'Ayala Center Cebu', type: 'activity', tag: '匯率佳', lat: 10.317, lng: 123.905 },
-                    { id: '1-6', date: '2026-02-11', time: '15:00', title: '午餐 House of Lechon', locationName: 'Ayala Center', type: 'food', tag: '推薦', note: '宿霧必吃烤乳豬' },
-                    { id: '1-7', date: '2026-02-11', time: '18:00', title: '夜市 Sugbo Mercado', locationName: 'IT Park', type: 'food', tag: '晚餐', note: '當地人氣夜市' },
-                    { id: '2-0', date: '2026-02-12', time: '07:30', title: '飯店早餐', locationName: 'Parklane Hotel', type: 'food', lat: 10.317, lng: 123.903 },
-                    { id: '2-1', date: '2026-02-12', time: '09:00', title: '抵達 Cebu Ocean Park', locationName: 'SM Seaside 旁', type: 'spot', lat: 10.283, lng: 123.882 },
-                    { id: '2-2', date: '2026-02-12', time: '10:00', title: 'Grab 移動', locationName: '', type: 'transport' },
-                    { id: '2-3', date: '2026-02-12', time: '11:00', title: '水族館網美餐 (Aqua Dining)', locationName: '海底隧道旁', type: 'food', tag: '需預約', lat: 10.283, lng: 123.882 },
-                    { id: '2-4', date: '2026-02-12', time: '12:00', title: 'SM Seaside Mall 逛街', locationName: 'Blackbeard Seafood', type: 'activity', lat: 10.282, lng: 123.881 },
-                    { id: '2-5', date: '2026-02-12', time: '13:00', title: '麥哲倫十字架', locationName: 'Magellans Cross', type: 'spot', lat: 10.293, lng: 123.901 },
-                    { id: '2-6', date: '2026-02-12', time: '14:00', title: '聖嬰大教堂', locationName: 'Basilica del Santo Niño', type: 'spot', lat: 10.294, lng: 123.902 },
-                    { id: '2-7', date: '2026-02-12', time: '15:00', title: '聖佩德羅堡', locationName: 'Fort San Pedro', type: 'spot', lat: 10.292, lng: 123.905 },
-                    { id: '2-8', date: '2026-02-12', time: '18:00', title: '晚餐 Texas Roadhouse', locationName: 'SM Seaside', type: 'food', tag: '推薦', lat: 10.282, lng: 123.881 },
-                    { id: '3-0', date: '2026-02-13', time: '07:30', title: '飯店早餐', locationName: 'Parklane Hotel', type: 'food', lat: 10.317, lng: 123.903 },
-                    { id: '3-1', date: '2026-02-13', time: '10:40', title: '抵達港口 Pier 1', locationName: 'Cebu Pier 1', type: 'note', tag: '買午餐', lat: 10.291, lng: 123.905 },
-                    { id: '3-2', date: '2026-02-13', time: '11:40', title: '搭船 Ocean Jet', locationName: '前往薄荷島', type: 'transport', tag: 'KKDay票' },
-                    { id: '3-3', date: '2026-02-13', time: '14:00', title: '抵達 Tagbilaran', locationName: 'Bohol', type: 'transport', tag: '包車1200p', lat: 9.645, lng: 123.850 },
-                    { id: '3-4', date: '2026-02-13', time: '15:00', title: '飯店 Check-in', locationName: 'Best Western Plus (Alona)', type: 'hotel', lat: 9.546, lng: 123.774 },
-                    { id: '3-5', date: '2026-02-13', time: '16:00', title: '度假村玩', locationName: 'Swimming Pool', type: 'activity', lat: 9.546, lng: 123.774 },
-                    { id: '3-6', date: '2026-02-13', time: '18:00', title: '晚餐 Giuseppe Pizzeria', locationName: 'Alona Beach Rd', type: 'food', tag: '4.3⭐', lat: 9.549, lng: 123.775 },
-                    { id: '4-0', date: '2026-02-14', time: '07:30', title: '飯店早餐', locationName: 'Best Western', type: 'food', lat: 9.546, lng: 123.774 },
-                    { id: '4-1', date: '2026-02-14', time: '09:00', title: 'Napaling Reef', locationName: '沙丁魚浮潛', type: 'spot', lat: 9.605, lng: 123.770 },
-                    { id: '4-2', date: '2026-02-14', time: '11:00', title: 'Hinagdanan Cave', locationName: '鐘乳石洞', type: 'spot', note: 'No Swim', lat: 9.613, lng: 123.799 },
+                    { id: '1-0', date: '2026-02-11', time: '03:15', title: '飛往馬尼拉 5J311', locationName: 'TPE T1 -> MNL T3', type: 'transport', tag: '轉機', lat: 14.512, lng: 121.015 },
+                    { id: '1-1', date: '2026-02-11', time: '05:45', title: '抵達馬尼拉 T3', locationName: 'MNL T3', type: 'note', tag: '領行李', lat: 14.512, lng: 121.015 },
+                    { id: '1-6', date: '2026-02-11', time: '15:00', title: '午餐 House of Lechon', locationName: 'Ayala Center', type: 'food', tag: '推薦', note: '宿霧必吃烤乳豬', lat: 10.317, lng: 123.906 },
+                    { id: '2-1', date: '2026-02-12', time: '09:00', title: 'Cebu Ocean Park', locationName: 'SM Seaside 旁', type: 'spot', note: '適合溜小孩', lat: 10.283, lng: 123.882 },
+                    { id: '3-2', date: '2026-02-13', time: '11:40', title: '搭船 Ocean Jet', locationName: '前往薄荷島', type: 'transport', tag: 'KKDay票', lat: 10.291, lng: 123.905 },
                     { id: '4-3', date: '2026-02-14', time: '12:00', title: '午餐 Ubeco', locationName: '韓系網美店', type: 'food', tag: '指定', lat: 9.6056, lng: 123.7742 },
-                    { id: '4-4', date: '2026-02-14', time: '14:00', title: '度假村休息', locationName: 'Best Western', type: 'activity', lat: 9.546, lng: 123.774 },
-                    { id: '4-5', date: '2026-02-14', time: '18:00', title: '晚餐 Mist', locationName: '森林系餐廳', type: 'food', tag: '推薦', lat: 9.554, lng: 123.766 },
-                    { id: '5-0', date: '2026-02-15', time: '05:30', title: '簡易早餐', locationName: '餐盒', type: 'food', tag: '早起', lat: 9.546, lng: 123.774 },
-                    { id: '5-1', date: '2026-02-15', time: '06:00', title: '跳島一日遊', locationName: 'Balicasag (海龜)', type: 'spot', tag: '包船', lat: 9.518, lng: 123.680 },
-                    { id: '5-2', date: '2026-02-15', time: '11:00', title: 'Virgin Island', locationName: '處女島', type: 'spot', lat: 9.556, lng: 123.730 },
-                    { id: '5-4', date: '2026-02-15', time: '14:30', title: 'Check in Villa', locationName: 'Villa Kalachuchi (Danao)', type: 'hotel', note: '無早餐有廚房', lat: 9.556, lng: 123.760 },
-                    { id: '5-5', date: '2026-02-15', time: '18:00', title: '晚餐 Luna Rossa', locationName: '素食義大利菜', type: 'food', tag: '推薦', lat: 9.553, lng: 123.762 },
-                    { id: '6-0', date: '2026-02-16', time: '08:00', title: 'Villa 早餐', locationName: 'Villa Kalachuchi', type: 'note', tag: '自理', lat: 9.556, lng: 123.760 },
-                    { id: '6-1', date: '2026-02-16', time: '09:00', title: '包車一日遊', locationName: 'Bohol 內陸', type: 'transport', tag: '6500p', lat: 9.696, lng: 124.120 },
-                    { id: '6-2', date: '2026-02-16', time: '10:00', title: '眼鏡猴 & 人造林', locationName: 'Tarsier Area', type: 'spot', lat: 9.696, lng: 124.120 },
-                    { id: '6-3', date: '2026-02-16', time: '12:00', title: '午餐 Rio Verde', locationName: '漂流竹筏', type: 'food', lat: 9.623, lng: 124.019 },
                     { id: '6-4', date: '2026-02-16', time: '14:00', title: '巧克力山', locationName: 'Chocolate Hills', type: 'spot', lat: 9.829, lng: 124.139 },
-                    { id: '6-5', date: '2026-02-16', time: '15:30', title: 'Zipline / ATV', locationName: 'Loboc', type: 'activity', lat: 9.660, lng: 124.025 },
-                    { id: '6-6', date: '2026-02-16', time: '18:00', title: '晚餐 Bohol Bee Farm', locationName: '海景懸崖', type: 'food', tag: '必吃', lat: 9.576, lng: 123.821 },
-                    { id: '7-1', date: '2026-02-17', time: '11:00', title: 'South Farm', locationName: '動物農場', type: 'spot', lat: 9.569, lng: 123.789 },
-                    { id: '7-4', date: '2026-02-17', time: '15:30', title: '前往邦勞機場', locationName: 'Panglao Airport', type: 'transport', lat: 9.565, lng: 123.763 },
-                    { id: '7-5', date: '2026-02-17', time: '18:20', title: '飛往馬尼拉 5J616', locationName: 'TAG -> MNL', type: 'transport' },
-                    { id: '7-6', date: '2026-02-17', time: '21:30', title: '晚餐 Shake Shack', locationName: 'BGC', type: 'food', tag: '簡單吃', lat: 14.550, lng: 121.050 },
-                    { id: '7-7', date: '2026-02-17', time: '22:00', title: '入住 Uptown', locationName: 'Uptown Parksuites', type: 'hotel', lat: 14.557, lng: 121.054 },
-                    { id: '8-0', date: '2026-02-18', time: '09:00', title: 'Wildflour Cafe', locationName: 'Uptown', type: 'food', tag: '早餐推薦', lat: 14.552, lng: 121.047 },
-                    { id: '8-1', date: '2026-02-18', time: '10:00', title: 'Mind Museum', locationName: '科學館', type: 'spot', lat: 14.551, lng: 121.045 },
-                    { id: '8-2', date: '2026-02-18', time: '12:00', title: '午餐 Mamou Meats', locationName: 'Uptown', type: 'food', tag: '推薦', lat: 14.557, lng: 121.054 },
-                    { id: '8-3', date: '2026-02-18', time: '19:00', title: '前往機場', locationName: 'MNL T3', type: 'transport', lat: 14.512, lng: 121.015 },
-                    { id: '8-4', date: '2026-02-18', time: '23:35', title: '返台 5J310', locationName: 'MNL -> TPE', type: 'transport' }
+                    { id: '7-6', date: '2026-02-17', time: '21:30', title: '晚餐 Shake Shack', locationName: 'BGC', type: 'food', tag: '簡單吃', lat: 14.550, lng: 121.050 }
                 ];
 
                 const events = ref([...initialItinerary]);
 
+                // Computed
                 const currentDayEvents = computed(() => {
                     const targetDate = tripDays[currentDateIndex.value].date;
                     return events.value.filter(e => e.date === targetDate).sort((a,b) => a.time.localeCompare(b.time));
                 });
-                
                 const currentCity = computed(() => currentDateIndex.value < 2 ? 'Cebu' : currentDateIndex.value <= 5 ? 'Bohol' : 'Manila');
                 const currentWeather = computed(() => ({ temp: 30, feels_like: 34, icon: 'sun' }));
                 const currentHeaderImage = computed(() => tripDays[currentDateIndex.value].image);
+                
+                const calcTWD = computed(() => {
+                    const rate = 0.56;
+                    const val = parseFloat(calcPHP.value);
+                    return isNaN(val) ? 0 : Math.round(val * rate);
+                });
 
+                // Methods
                 const changeDate = (idx) => currentDateIndex.value = idx;
                 const openMap = (q) => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`, '_blank');
                 
+                const openPopup = (type) => {
+                    activePopup.value = type;
+                };
+
+                const closePopup = () => {
+                    activePopup.value = null;
+                };
+
                 const saveEvent = () => {
                     events.value.push({...formEvent.value, id: Date.now(), date: tripDays[currentDateIndex.value].date});
                     showEventModal.value = false;
-                    // Background sync to Firebase can happen here
-                    if (window.fireOps) {
-                        const { addDoc, collection } = window.fireOps;
-                        addDoc(collection(window.db, 'events_v19'), {...formEvent.value, date: tripDays[currentDateIndex.value].date});
+                    // Sync to Firebase in background
+                    if(window.fireOps) {
+                         window.fireOps.addDoc(window.fireOps.collection(window.db, 'events_v21'), {...formEvent.value, date: tripDays[currentDateIndex.value].date});
                     }
                 };
 
@@ -527,29 +444,12 @@
                     if(confirm('確定刪除？')) events.value = events.value.filter(i => i.id !== id);
                 };
 
-                const forceInit = () => window.location.reload();
-                
-                const handleImageError = (e) => {
-                    e.target.src = 'https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?q=80&w=800'; // Fallback to Cebu
-                };
-                
-                // Computed for Exchange Rate
-                const calcTWD = computed(() => {
-                    const rate = 0.56;
-                    const val = parseFloat(calcPHP.value);
-                    if (isNaN(val)) return 0;
-                    return Math.round(val * rate);
-                });
-
-                // Map Logic (Fixed initialization)
+                // Map Logic
                 let map = null;
                 let markersLayer = null;
 
                 const initMap = () => {
-                    if (map) {
-                        map.invalidateSize();
-                        return;
-                    }
+                    if (map) { map.invalidateSize(); return; }
                     map = L.map('map-container', { zoomControl: false }).setView([10.3157, 123.8854], 12);
                     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
                     markersLayer = L.layerGroup().addTo(map);
@@ -560,7 +460,6 @@
                     if (!map || !markersLayer) return;
                     markersLayer.clearLayers();
                     const dayEvents = events.value.filter(e => e.date === tripDays[currentDateIndex.value].date && e.lat && e.lng);
-                    
                     if (dayEvents.length > 0) {
                         const latlngs = [];
                         dayEvents.forEach((e, idx) => {
@@ -571,49 +470,25 @@
                         });
                         const bounds = L.latLngBounds(latlngs);
                         map.fitBounds(bounds, { padding: [50, 50] });
-                    } else {
-                        // Default fallback view if no points for the day
-                        map.setView([10.3157, 123.8854], 10);
                     }
                 };
-                
-                const locateUser = () => map && map.locate({ setView: true, maxZoom: 14 });
-                const fitBounds = () => updateMapMarkers();
 
                 const switchTab = (tabId) => {
                     currentTab.value = tabId;
                     if(tabId === 'map') {
                         setTimeout(() => {
                             if(!map) initMap();
-                            else { 
-                                map.invalidateSize(); 
-                                updateMapMarkers(); 
-                            }
+                            else { map.invalidateSize(); updateMapMarkers(); }
                         }, 100);
                     }
                 };
                 
-                // Add button handler
-                const openAddModal = () => {
-                    formEvent.value = {
-                        date: tripDays[currentDateIndex.value].date,
-                        time: '12:00', type: 'spot', title: '', locationName: '', note: ''
-                    };
-                    showEventModal.value = true;
-                };
-
                 // Helpers
                 const getCategoryName = (c) => ({ spot: '景點', food: '美食', hotel: '住宿', transport: '交通', note: '筆記', activity: '活動' })[c] || '其他';
                 const getCategoryColor = (c) => ({ spot: 'bg-teal-500', food: 'bg-amber-400', hotel: 'bg-indigo-500', transport: 'bg-sky-500', note: 'bg-rose-400' })[c] || 'bg-slate-400';
                 
-                // --- FIXED ICON MAPPING (Lucide) ---
                 const getCategoryIcon = (c) => ({
-                    spot: 'camera',
-                    food: 'utensils',
-                    hotel: 'bed',
-                    transport: 'car',
-                    note: 'file-text',
-                    activity: 'person-standing'
+                    spot: 'camera', food: 'utensils', hotel: 'bed', transport: 'car', note: 'file-text', activity: 'person-standing'
                 })[c] || 'circle';
 
                 const getCategoryBadgeStyle = (c) => ({
@@ -624,50 +499,31 @@
                     note: 'bg-rose-50 text-rose-600 border-rose-200'
                 })[c] || 'bg-slate-50 text-slate-500 border-slate-200';
 
-                // --- Init ---
+                // Icons Refresher
+                const refreshIcons = () => nextTick(() => lucide.createIcons());
+
                 onMounted(() => {
-                    lucide.createIcons();
+                    refreshIcons();
+                    // Firebase Sync
                     window.addEventListener('firebase-ready', () => {
-                        const { collection, onSnapshot, query } = window.fireOps;
-                        const db = window.db;
-                        const q = query(collection(db, 'events_v19'));
-                        
-                        onSnapshot(q, (snap) => {
-                            if (!snap.empty) {
-                                // Update from cloud if needed
-                            } else {
-                                initialItinerary.forEach(item => window.fireOps.addDoc(collection(db, 'events_v19'), item));
-                            }
-                        });
+                         const { collection, onSnapshot, query } = window.fireOps;
+                         onSnapshot(query(collection(window.db, 'events_v21')), (snap) => {
+                             // Sync logic (optional for local-first)
+                         });
                     });
                 });
 
-                watch([currentTab, currentDateIndex], (val) => {
-                    nextTick(() => lucide.createIcons());
-                    if(currentTab.value === 'map') {
-                        setTimeout(() => {
-                            if(!map) initMap();
-                            else { 
-                                map.invalidateSize(); 
-                                updateMapMarkers(); 
-                            }
-                        }, 100);
-                    }
-                });
-                
-                // Fix for icons inside Popups
-                watch(activePopup, () => {
-                    nextTick(() => lucide.createIcons());
-                });
+                watch([currentTab, currentDateIndex, activePopup], () => refreshIcons());
 
                 return {
                     currentTab, activePopup, currentDateIndex, currentDayEvents, tripDays,
                     changeDate, openMap, switchTab,
-                    saveEvent, deleteEvent, isEditing: false,
-                    initMap, locateUser, fitBounds, openAddModal, editEvent: () => {},
+                    saveEvent, deleteEvent, 
+                    initMap, openPopup, closePopup,
                     getCategoryName, getCategoryColor, getCategoryBadgeStyle, getCategoryIcon,
-                    currentWeather, currentCity, currentHeaderImage, firebaseReady: ref(true),
-                    handleImageError, calcPHP, calcTWD
+                    currentWeather, currentCity, currentHeaderImage, calcPHP, calcTWD,
+                    showEventModal, formEvent,
+                    handleImageError: (e) => e.target.src = 'https://images.unsplash.com/photo-1595130456565-5c1a7044033b?q=80&w=800'
                 };
             }
         }).mount('#app');
