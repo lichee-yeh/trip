@@ -3,22 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Remi's Family Trip ☁️</title>
+    <title>Remi's Super Trip ☁️</title>
     
-    <!-- Vue 3 -->
+    <!-- 核心庫 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Leaflet Map -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
 
-    <!-- Firebase 設定 -->
+    <!-- Firebase -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         
         const firebaseConfig = {
             apiKey: "AIzaSyA1JHrkPbANS-g7X8OudpD0w819ZXA8-7A",
@@ -32,216 +28,445 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        
         window.db = db;
-        window.firestoreOps = { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs };
+        window.fireOps = { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch };
         window.dispatchEvent(new Event('firebase-ready'));
     </script>
 
-    <!-- 字體與樣式 -->
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: { teal: { 50: '#f0fdfa', 100: '#ccfbf1', 400: '#2dd4bf', 500: '#14b8a6', 600: '#0d9488', 900: '#134e4a' } },
-                    fontFamily: { sans: ['Noto Sans TC', 'sans-serif'] },
-                    boxShadow: { 'float': '0 10px 30px -10px rgba(20, 184, 166, 0.3)' }
+                    fontFamily: { sans: ['Noto Sans TC', 'sans-serif'], mono: ['Roboto Mono', 'monospace'] },
+                    boxShadow: { 'card': '0 4px 12px -2px rgba(0, 0, 0, 0.08)' }
                 }
             }
         }
     </script>
     <style>
-        body { background-color: #f1f5f9; -webkit-tap-highlight-color: transparent; }
+        body { background-color: #f8fafc; -webkit-tap-highlight-color: transparent; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
-        #map-container { height: 100%; width: 100%; z-index: 0; }
-        .custom-div-icon { background: #14b8a6; color: white; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
-        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
-        .fade-enter-from, .fade-leave-to { opacity: 0; }
-        html { scroll-behavior: smooth; }
+        /* 拖曳時的樣式 */
+        .dragging { opacity: 0.5; transform: scale(0.98); }
+        .drag-over { border-top: 2px solid #14b8a6; }
+        /* 航班卡片專用樣式 */
+        .ticket-cut {
+            position: absolute; bottom: 30%; left: -6px; width: 12px; height: 12px;
+            background-color: #f8fafc; border-radius: 50%;
+        }
+        .ticket-cut-r { left: auto; right: -6px; }
+        .ticket-dash {
+            position: absolute; bottom: 30%; left: 10px; right: 10px;
+            border-bottom: 2px dashed #e2e8f0;
+        }
     </style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden text-slate-600 font-sans">
+<body class="h-screen flex flex-col text-slate-700 font-sans overflow-hidden">
 
     <div id="app" class="flex flex-col h-full max-w-md mx-auto bg-slate-50 relative shadow-2xl">
 
-        <!-- Loading -->
-        <div v-if="!firebaseReady" class="absolute inset-0 z-[9999] bg-white flex flex-col items-center justify-center">
-            <div class="w-12 h-12 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mb-4"></div>
-            <p class="text-teal-600 font-bold animate-pulse">正在讀取雲端行程...</p>
+        <!-- 1. 行程表 (Schedule) -->
+        <div v-if="currentTab === 'schedule'" class="flex flex-col h-full">
+            <!-- Header with Date Scroller -->
+            <header class="bg-white pt-10 pb-2 shadow-sm z-20">
+                <div class="px-5 mb-3 flex justify-between items-end">
+                    <div>
+                        <h1 class="text-xl font-black text-teal-900 tracking-tight">Trip Schedule</h1>
+                        <p class="text-xs text-slate-400">Remi Family Trip 2026</p>
+                    </div>
+                    <!-- Weather Widget (Auto) -->
+                    <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
+                        <i :data-lucide="currentWeather.icon" class="w-5 h-5 text-amber-400"></i>
+                        <div class="flex flex-col items-end leading-none">
+                            <span class="text-sm font-bold text-slate-700">{{ currentWeather.temp }}°</span>
+                            <span class="text-[9px] text-slate-400">體感 {{ currentWeather.feels_like }}°</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Horizontal Date List -->
+                <div class="flex overflow-x-auto hide-scrollbar px-4 pb-2 gap-3 snap-x">
+                    <button v-for="(day, idx) in tripDays" :key="day.date" @click="changeDate(idx)"
+                        class="flex-shrink-0 flex flex-col items-center justify-center w-14 h-16 rounded-2xl transition-all duration-200 border snap-start"
+                        :class="currentDateIndex === idx ? 'bg-teal-600 text-white shadow-lg shadow-teal-200 border-teal-600 transform -translate-y-1' : 'bg-white text-slate-400 border-slate-100'">
+                        <span class="text-sm font-black">{{ day.dayShort }}</span>
+                        <span class="text-xs font-medium opacity-80">{{ day.dayNum }}</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Itinerary Content -->
+            <main class="flex-1 overflow-y-auto p-4 space-y-0 hide-scrollbar pb-24">
+                
+                <!-- Empty State -->
+                <div v-if="currentDayEvents.length === 0" class="flex flex-col items-center justify-center py-20 text-slate-300 opacity-60">
+                    <i data-lucide="map" class="w-12 h-12 mb-3 stroke-1"></i>
+                    <p class="text-sm">點擊右下角 + 新增行程</p>
+                </div>
+
+                <!-- Events List (Draggable) -->
+                <div v-for="(event, index) in currentDayEvents" :key="event.id"
+                     draggable="true"
+                     @dragstart="dragStart(index, $event)"
+                     @dragover.prevent
+                     @drop="dragDrop(index)"
+                     @touchstart="touchStart(index)"
+                     @touchmove="touchMove"
+                     @touchend="dragDrop(index)"
+                     class="relative group transition-all duration-200">
+                    
+                    <!-- Transport Connector (Previous -> Current) -->
+                    <div v-if="index > 0" class="flex flex-col items-center py-2 relative h-14">
+                        <div class="w-0.5 h-full bg-slate-200 absolute top-0 z-0"></div>
+                        <div class="z-10 bg-slate-50 border border-slate-200 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm text-[10px] text-slate-500 cursor-pointer hover:bg-white"
+                             @click="editEvent(event)">
+                            <i :data-lucide="getTransportIcon(event.transportMode)" class="w-3 h-3"></i>
+                            <span>{{ event.transportTime || '計算中...' }}</span>
+                        </div>
+                    </div>
+                    <!-- First Item Transport (From Hotel) -->
+                    <div v-else class="flex flex-col items-center py-2 relative h-10">
+                         <div class="w-0.5 h-1/2 bg-slate-200 absolute bottom-0 z-0"></div>
+                         <div class="z-10 bg-slate-100 px-2 py-0.5 rounded-md text-[10px] text-slate-400 mb-1 flex items-center gap-1">
+                            <i data-lucide="bed" class="w-3 h-3"></i> 從飯店出發
+                         </div>
+                    </div>
+
+                    <!-- Card Body -->
+                    <div class="bg-white rounded-2xl shadow-card border border-slate-100 p-0 overflow-hidden relative active:scale-95 transition-transform"
+                         :class="{'bg-teal-50 border-teal-200': event.category === 'flight'}">
+                        
+                        <!-- Flight Special Style -->
+                        <div v-if="event.category === 'flight'" class="p-4">
+                            <div class="ticket-cut"></div><div class="ticket-cut ticket-cut-r"></div><div class="ticket-dash"></div>
+                            <div class="flex justify-between items-center mb-6">
+                                <div class="text-2xl font-black text-teal-800">{{ event.depCode || 'TPE' }}</div>
+                                <div class="flex flex-col items-center">
+                                    <i data-lucide="plane" class="w-5 h-5 text-teal-500 rotate-90"></i>
+                                    <span class="text-[10px] text-teal-600 font-mono mt-1">{{ event.flightNum || 'Flight' }}</span>
+                                </div>
+                                <div class="text-2xl font-black text-teal-800">{{ event.arrCode || 'CEB' }}</div>
+                            </div>
+                            <div class="flex justify-between items-end">
+                                <div>
+                                    <div class="text-xs text-slate-400">DEPART</div>
+                                    <div class="font-bold text-slate-700">{{ event.time }}</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-xs text-slate-400">ARRIVE</div>
+                                    <div class="font-bold text-slate-700">{{ event.endTime || '--:--' }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Normal Card Style -->
+                        <div v-else class="p-4 flex gap-4" @click="openMap(event.title)">
+                            <div class="flex flex-col items-center gap-1 pt-1">
+                                <div class="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-sm"
+                                     :class="getCategoryColor(event.category)">
+                                    <i :data-lucide="getCategoryIcon(event.category)" class="w-5 h-5"></i>
+                                </div>
+                                <span class="text-xs font-bold text-slate-400 font-mono">{{ event.time }}</span>
+                            </div>
+                            
+                            <div class="flex-1 min-w-0">
+                                <div class="flex justify-between items-start">
+                                    <h3 class="font-bold text-lg text-slate-800 leading-tight truncate">{{ event.title }}</h3>
+                                    <!-- Edit Button (Small) -->
+                                    <button @click.stop="editEvent(event)" class="text-slate-300 hover:text-teal-500 p-1"><i data-lucide="more-horizontal" class="w-4 h-4"></i></button>
+                                </div>
+                                
+                                <!-- Info Tags -->
+                                <div class="flex flex-wrap gap-2 mt-2">
+                                    <span v-if="event.hours" class="text-[10px] bg-slate-50 border border-slate-200 px-2 py-0.5 rounded text-slate-500 flex items-center">
+                                        <i data-lucide="clock" class="w-3 h-3 mr-1"></i> {{ event.hours }}
+                                    </span>
+                                    <span v-if="event.ticket" class="text-[10px] bg-yellow-50 border border-yellow-200 px-2 py-0.5 rounded text-yellow-700 flex items-center">
+                                        <i data-lucide="ticket" class="w-3 h-3 mr-1"></i> {{ event.ticket }}
+                                    </span>
+                                </div>
+
+                                <!-- Note -->
+                                <p v-if="event.note" class="text-xs text-slate-500 mt-2 line-clamp-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                    {{ event.note }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- FAB Add Button -->
+            <button @click="openModal()" class="absolute bottom-24 right-5 w-14 h-14 bg-teal-600 rounded-full shadow-lg shadow-teal-200 text-white flex items-center justify-center hover:scale-105 transition-all active:scale-95 z-30">
+                <i data-lucide="plus" class="w-8 h-8"></i>
+            </button>
         </div>
 
-        <!-- Header -->
-        <header class="px-5 pt-12 pb-3 bg-white/95 backdrop-blur-md z-30 sticky top-0 border-b border-slate-100 shadow-sm">
-            <div class="flex justify-between items-center mb-3">
-                <div>
-                    <h1 class="text-xl font-bold text-teal-900 tracking-tight">Remi Family Trip</h1>
-                    <p class="text-xs text-slate-400 mt-0.5">6大1小 • 宿霧薄荷島 8日遊</p>
-                </div>
-                <div class="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-lg border border-teal-100 shadow-sm">
-                    👧🏻
-                </div>
-            </div>
-
-            <!-- Date Scroller (Anchor Links) -->
-            <div v-if="currentTab === 'schedule'" class="flex space-x-2 overflow-x-auto hide-scrollbar pb-1">
-                <button v-for="(day, index) in tripDays" :key="index" @click="scrollToDay(day.date)"
-                    class="flex-shrink-0 flex flex-col items-center justify-center w-14 h-16 rounded-2xl transition-all duration-300 border relative overflow-hidden bg-white text-slate-500 border-slate-100 hover:border-teal-300 active:scale-95">
-                    <span class="text-[10px] opacity-80 uppercase font-medium">{{ day.dayShort }}</span>
-                    <span class="text-lg font-bold">{{ day.dayNum }}</span>
-                </button>
-            </div>
-        </header>
-
-        <!-- Main Content -->
-        <main class="flex-1 overflow-y-auto relative bg-slate-50 hide-scrollbar scroll-smooth" id="main-scroll">
+        <!-- 2. 資訊 (Info) -->
+        <div v-else-if="currentTab === 'info'" class="flex flex-col h-full bg-slate-100 p-4 space-y-4 overflow-y-auto pb-24">
+            <h1 class="text-2xl font-black text-slate-800 mt-8 mb-2 px-2">Travel Info</h1>
             
-            <!-- Tab 1: Schedule (Long Scroll) -->
-            <transition name="fade">
-                <div v-if="currentTab === 'schedule'" class="px-4 py-6 space-y-8 pb-32">
-                    
-                    <div v-if="itinerary.length === 0" class="flex flex-col items-center justify-center py-20 text-slate-300 opacity-60">
-                        <i data-lucide="coffee" class="w-12 h-12 mb-3 stroke-1"></i>
-                        <p class="text-sm font-medium">讀取中...</p>
-                        <button @click="forceInit" class="mt-4 text-teal-600 text-xs font-bold border border-teal-200 px-4 py-2 rounded-full hover:bg-teal-50">重新載入</button>
+            <!-- Rate Calculator -->
+            <div class="bg-teal-600 rounded-2xl p-5 text-white shadow-lg">
+                <h3 class="text-sm font-bold opacity-80 mb-4 flex items-center"><i data-lucide="arrow-left-right" class="w-4 h-4 mr-2"></i> 匯率換算</h3>
+                <div class="flex items-end gap-3">
+                    <div class="flex-1">
+                        <label class="text-xs opacity-70 block mb-1">PHP (披索)</label>
+                        <input type="number" v-model="calcPHP" @input="calcToTWD" class="w-full bg-white/20 border-0 rounded-xl text-2xl font-mono p-2 text-white placeholder-white/50 focus:ring-2 focus:ring-white">
                     </div>
-
-                    <!-- Day Groups -->
-                    <div v-for="(day, dayIdx) in tripDays" :key="day.date" :id="'day-' + day.date" class="scroll-mt-40">
-                        
-                        <!-- Day Header -->
-                        <div class="flex items-center gap-3 mb-4 sticky top-0 bg-slate-50/95 py-2 z-10">
-                            <div class="px-3 py-1 bg-teal-600 text-white rounded-lg text-sm font-bold shadow-md">
-                                Day {{ dayIdx + 1 }}
-                            </div>
-                            <div class="text-sm font-bold text-slate-700">
-                                {{ day.dateShort }} ({{ day.dayName }})
-                            </div>
-                            <div class="h-[1px] flex-1 bg-slate-200"></div>
-                        </div>
-
-                        <!-- Events for this day -->
-                        <div class="space-y-4">
-                            <div v-for="event in getEventsForDay(day.date)" :key="event.id" 
-                                 class="group bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex gap-4 relative overflow-hidden transition-all hover:shadow-md">
-                                
-                                <!-- Side Color -->
-                                <div class="absolute left-0 top-0 bottom-0 w-1 transition-colors" :class="getTypeColor(event.type)"></div>
-                                
-                                <!-- Time -->
-                                <div class="flex flex-col items-center min-w-[3.5rem] pt-0.5 border-r border-slate-50 pr-3">
-                                    <span class="text-lg font-bold text-slate-700 font-sans tracking-tight">{{ event.time }}</span>
-                                    <div v-if="event.weather" class="mt-2 text-xs flex flex-col items-center text-amber-500 bg-amber-50 px-1 py-0.5 rounded">
-                                        <i :data-lucide="getWeatherIcon(event.weather.code)" class="w-3 h-3 mb-0.5"></i>
-                                        <span class="scale-90 font-bold">{{ event.weather.temp }}°</span>
-                                    </div>
-                                </div>
-
-                                <!-- Content -->
-                                <div class="flex-1 min-w-0">
-                                    <div class="flex justify-between items-start">
-                                        <h3 class="font-bold text-slate-800 text-base leading-tight truncate pr-2">{{ event.title }}</h3>
-                                        <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button @click="openMapForEvent(event)" class="text-slate-300 hover:text-teal-500"><i data-lucide="map" class="w-4 h-4"></i></button>
-                                            <button @click="deleteEvent(event.id)" class="text-slate-300 hover:text-red-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                                        </div>
-                                    </div>
-                                    
-                                    <p class="text-xs text-slate-400 mt-1 flex items-center">
-                                        <i data-lucide="map-pin" class="w-3 h-3 mr-1"></i> {{ event.locationName }}
-                                    </p>
-                                    
-                                    <!-- Tags -->
-                                    <div class="mt-3 flex flex-wrap gap-2">
-                                        <span class="px-2 py-0.5 rounded-md text-[10px] font-bold border"
-                                            :class="getTypeStyle(event.type)">
-                                            {{ getTypeName(event.type) }}
-                                        </span>
-                                        <span v-if="event.tag" class="px-2 py-0.5 bg-slate-50 text-slate-500 rounded-md text-[10px] border border-slate-100 flex items-center">
-                                            <i data-lucide="star" class="w-2 h-2 mr-1 text-orange-400 fill-orange-400"></i> {{ event.tag }}
-                                        </span>
-                                        <span v-if="event.type === 'note'" class="px-2 py-0.5 bg-red-50 text-red-500 rounded-md text-[10px] border border-red-100 flex items-center">
-                                            <i data-lucide="alert-circle" class="w-2 h-2 mr-1"></i> 重要
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- Empty day placeholder -->
-                            <div v-if="getEventsForDay(day.date).length === 0" class="text-center py-4 text-xs text-slate-300 border-2 border-dashed border-slate-100 rounded-xl">
-                                本日尚無行程
-                            </div>
-                        </div>
+                    <div class="pb-3 font-bold">=</div>
+                    <div class="flex-1">
+                        <label class="text-xs opacity-70 block mb-1">TWD (台幣)</label>
+                        <div class="text-2xl font-mono p-2">{{ calcTWD }}</div>
                     </div>
-
                 </div>
-            </transition>
+                <div class="text-[10px] text-right mt-2 opacity-60">匯率: {{ exchangeRate }}</div>
+            </div>
 
-            <!-- Tab 2: Map -->
-            <div v-show="currentTab === 'map'" class="h-full w-full relative">
-                <div id="map-container"></div>
-                <div class="absolute bottom-24 right-4 flex flex-col gap-2 z-[400]">
-                    <button @click="locateUser" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-teal-600 hover:bg-teal-50 border border-slate-100"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
-                    <button @click="fitBounds" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:bg-slate-50 border border-slate-100"><i data-lucide="maximize" class="w-6 h-6"></i></button>
+            <!-- Flights (Static from Image) -->
+            <div class="bg-white rounded-2xl p-5 shadow-sm">
+                <h3 class="font-bold text-slate-800 mb-3 flex items-center"><i data-lucide="plane" class="w-4 h-4 mr-2 text-blue-500"></i> 航班資訊</h3>
+                <div class="space-y-4">
+                    <div class="border-l-4 border-blue-500 pl-3">
+                        <div class="text-xs text-slate-400">去程 2/11</div>
+                        <div class="font-bold">TPE 03:15 -> CEB 12:25</div>
+                        <div class="text-xs text-slate-500 mt-1">5J311 / 5J585 (MNL轉機)</div>
+                    </div>
+                    <div class="border-l-4 border-orange-500 pl-3">
+                        <div class="text-xs text-slate-400">回程 2/18</div>
+                        <div class="font-bold">MNL 23:35 -> TPE 02:00</div>
+                        <div class="text-xs text-slate-500 mt-1">5J310 (T3航廈)</div>
+                    </div>
                 </div>
             </div>
-        </main>
 
-        <!-- Floating Add Button -->
-        <button v-if="currentTab === 'schedule'" @click="showEventModal = true" class="absolute bottom-24 right-5 w-14 h-14 bg-teal-600 rounded-full shadow-float text-white flex items-center justify-center hover:bg-teal-700 hover:scale-105 transition-all z-40 active:scale-95">
-            <i data-lucide="plus" class="w-7 h-7"></i>
-        </button>
-
-        <!-- Bottom Navigation -->
-        <nav class="bg-white border-t border-slate-100 pb-8 pt-3 px-6 flex justify-around items-center z-50">
-            <button v-for="tab in tabs" :key="tab.id" @click="switchTab(tab.id)" class="flex flex-col items-center gap-1 w-16 transition-all duration-300 relative" :class="currentTab === tab.id ? 'text-teal-600 -translate-y-1' : 'text-slate-300 hover:text-slate-400'">
-                <div class="relative">
-                    <i :data-lucide="tab.icon" class="w-6 h-6" :class="currentTab === tab.id ? 'fill-teal-50' : ''"></i>
-                    <div v-if="currentTab === tab.id" class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 bg-teal-600 rounded-full"></div>
+            <!-- Hotel & Emergency -->
+            <div class="bg-white rounded-2xl p-5 shadow-sm">
+                <h3 class="font-bold text-slate-800 mb-3 flex items-center"><i data-lucide="bed" class="w-4 h-4 mr-2 text-indigo-500"></i> 住宿資訊</h3>
+                <div class="space-y-3 text-sm">
+                    <div class="flex justify-between items-center pb-2 border-b border-slate-50">
+                        <span>宿霧 Marco Polo</span>
+                        <a href="https://maps.google.com/?q=Marco+Polo+Plaza+Cebu" target="_blank" class="text-teal-600 bg-teal-50 p-1.5 rounded-lg"><i data-lucide="navigation" class="w-4 h-4"></i></a>
+                    </div>
+                    <div class="flex justify-between items-center pb-2 border-b border-slate-50">
+                        <span>薄荷 Best Western</span>
+                        <a href="https://maps.google.com/?q=Best+Western+Plus+The+Ivywall+Resort-Panglao" target="_blank" class="text-teal-600 bg-teal-50 p-1.5 rounded-lg"><i data-lucide="navigation" class="w-4 h-4"></i></a>
+                    </div>
                 </div>
-                <span class="text-[10px] font-medium">{{ tab.label }}</span>
+            </div>
+            
+            <div class="bg-white rounded-2xl p-5 shadow-sm">
+                <h3 class="font-bold text-slate-800 mb-3 flex items-center"><i data-lucide="siren" class="w-4 h-4 mr-2 text-red-500"></i> 緊急醫療</h3>
+                <div class="grid grid-cols-2 gap-4 text-center">
+                    <div class="bg-red-50 p-3 rounded-xl text-red-600">
+                        <div class="text-xs">警察</div>
+                        <div class="font-black text-xl">117</div>
+                    </div>
+                    <div class="bg-red-50 p-3 rounded-xl text-red-600">
+                        <div class="text-xs">救護車</div>
+                        <div class="font-black text-xl">168</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 購物 (Shopping) -->
+        <div v-if="currentTab === 'shopping'" class="flex flex-col h-full bg-white p-4 pb-24">
+            <h1 class="text-2xl font-black text-slate-800 mt-8 mb-4 px-2">Shopping List</h1>
+            <div class="grid grid-cols-2 gap-4 overflow-y-auto hide-scrollbar">
+                <div v-for="item in shoppingList" :key="item.id" class="bg-slate-50 rounded-2xl p-3 border border-slate-100 relative group">
+                    <button @click="deleteItem('shopping', item.id)" class="absolute top-2 right-2 bg-white/80 rounded-full p-1 text-slate-400 hover:text-red-500"><i data-lucide="x" class="w-4 h-4"></i></button>
+                    <div class="aspect-square bg-white rounded-xl mb-3 flex items-center justify-center overflow-hidden border border-slate-100">
+                        <img v-if="item.image" :src="item.image" class="w-full h-full object-cover">
+                        <i v-else data-lucide="image" class="w-8 h-8 text-slate-200"></i>
+                    </div>
+                    <h4 class="font-bold text-slate-700 text-sm truncate">{{ item.name }}</h4>
+                    <div class="flex items-center gap-1 mt-1">
+                        <input type="checkbox" class="rounded text-teal-600 focus:ring-0">
+                        <span class="text-xs text-slate-400">未購買</span>
+                    </div>
+                </div>
+            </div>
+            <button @click="showShoppingModal=true" class="absolute bottom-24 right-5 w-14 h-14 bg-teal-600 rounded-full shadow-lg text-white flex items-center justify-center z-30">
+                <i data-lucide="plus" class="w-8 h-8"></i>
+            </button>
+        </div>
+
+        <!-- 4. 花費 (Expenses) -->
+        <div v-if="currentTab === 'expenses'" class="flex flex-col h-full bg-slate-50 p-4 pb-24">
+            <h1 class="text-2xl font-black text-slate-800 mt-8 mb-4 px-2">Expenses</h1>
+            
+            <!-- Total -->
+            <div class="bg-slate-800 rounded-2xl p-6 text-white shadow-xl mb-6 relative overflow-hidden">
+                <div class="relative z-10">
+                    <div class="text-xs text-slate-400 uppercase tracking-widest mb-1">Total Spent</div>
+                    <div class="text-4xl font-mono font-bold">₱ {{ totalExpense.toLocaleString() }}</div>
+                    <div class="text-xs text-slate-500 mt-2">約 NT$ {{ Math.round(totalExpense * exchangeRate).toLocaleString() }}</div>
+                </div>
+                <div class="absolute right-[-20px] top-[-20px] w-32 h-32 bg-teal-500 rounded-full opacity-20 blur-2xl"></div>
+            </div>
+
+            <!-- List -->
+            <div class="space-y-3 overflow-y-auto hide-scrollbar flex-1">
+                <div v-for="ex in expenseList" :key="ex.id" class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center text-lg">
+                            <i :data-lucide="getExpenseIcon(ex.category)" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-700">{{ ex.name }}</div>
+                            <div class="text-[10px] text-slate-400">{{ ex.date }} • {{ ex.payment }}</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-bold font-mono">₱{{ ex.amount }}</div>
+                        <button @click="deleteItem('expenses', ex.id)" class="text-[10px] text-red-300">刪除</button>
+                    </div>
+                </div>
+            </div>
+            <button @click="showExpenseModal=true" class="absolute bottom-24 right-5 w-14 h-14 bg-teal-600 rounded-full shadow-lg text-white flex items-center justify-center z-30">
+                <i data-lucide="plus" class="w-8 h-8"></i>
+            </button>
+        </div>
+
+        <!-- Navigation Bar -->
+        <nav class="bg-white border-t border-slate-100 h-20 fixed bottom-0 w-full max-w-md flex justify-around items-center px-2 z-40 pb-2">
+            <button v-for="tab in tabs" :key="tab.id" @click="currentTab = tab.id" 
+                class="flex flex-col items-center justify-center w-16 h-full transition-all"
+                :class="currentTab === tab.id ? 'text-teal-600' : 'text-slate-300'">
+                <div class="relative p-1">
+                    <i :data-lucide="tab.icon" class="w-6 h-6 transition-all" :class="{'fill-teal-100 stroke-teal-600': currentTab === tab.id}"></i>
+                    <div v-if="currentTab === tab.id" class="absolute -top-1 right-0 w-2 h-2 bg-teal-500 rounded-full"></div>
+                </div>
+                <span class="text-[10px] font-medium mt-1">{{ tab.label }}</span>
             </button>
         </nav>
 
-        <!-- Event Modal -->
-        <div v-if="showEventModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div class="bg-white w-full max-w-md p-6 rounded-t-3xl sm:rounded-3xl animate-slide-up shadow-2xl">
-                <div class="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-6"></div>
-                <h3 class="text-lg font-bold text-teal-900 mb-4">新增行程</h3>
-                <div class="space-y-3">
-                    <div class="grid grid-cols-3 gap-3">
-                        <input v-model="formEvent.time" type="time" class="col-span-1 input-field text-center font-bold">
-                        <select v-model="formEvent.type" class="col-span-2 input-field bg-white">
-                            <option value="spot">📸 景點</option>
-                            <option value="food">🍽️ 餐廳</option>
-                            <option value="transport">🚗 交通</option>
-                            <option value="hotel">🏨 住宿</option>
-                            <option value="note">⚠️ 備註</option>
-                        </select>
-                    </div>
-                    
-                    <!-- 日期選擇 -->
-                    <select v-model="formEvent.date" class="input-field bg-white">
-                        <option v-for="day in tripDays" :key="day.date" :value="day.date">
-                            {{ day.dateShort }} ({{ day.dayName }})
-                        </option>
-                    </select>
+        <!-- === Modals === -->
 
-                    <input v-model="formEvent.title" placeholder="標題" class="input-field">
-                    <input v-model="formEvent.locationName" placeholder="地點名稱" class="input-field">
-                    <input v-model="formEvent.tag" placeholder="標籤 (例: 4.8⭐)" class="input-field">
-                    
-                    <div class="pt-2">
-                        <p class="text-xs text-slate-400 mb-2">座標 (選填)</p>
-                        <div class="grid grid-cols-2 gap-2">
-                            <input v-model.number="formEvent.lat" placeholder="緯度 Lat" class="input-field text-xs">
-                            <input v-model.number="formEvent.lng" placeholder="經度 Lng" class="input-field text-xs">
+        <!-- Event Modal (Add/Edit) -->
+        <div v-if="showEventModal" class="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-4 backdrop-blur-sm">
+            <div class="bg-white w-full max-w-md rounded-3xl p-6 animate-slide-up shadow-2xl max-h-[85vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-black text-slate-800">{{ isEditing ? '編輯行程' : '新增行程' }}</h3>
+                    <button v-if="isEditing" @click="deleteEvent" class="text-red-500 bg-red-50 px-3 py-1 rounded-full text-xs font-bold">刪除</button>
+                </div>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="label">時間</label>
+                            <input v-model="formEvent.time" type="time" class="input">
+                        </div>
+                        <div>
+                            <label class="label">分類</label>
+                            <select v-model="formEvent.category" class="input bg-white">
+                                <option value="spot">📍 景點</option>
+                                <option value="food">🍴 美食</option>
+                                <option value="hotel">🏨 住宿</option>
+                                <option value="shop">🛍️ 購物</option>
+                                <option value="flight">✈️ 航班</option>
+                                <option value="other">🔹 其他</option>
+                            </select>
                         </div>
                     </div>
+                    <div>
+                        <label class="label">名稱</label>
+                        <input v-model="formEvent.title" class="input" placeholder="例如：Cebu Ocean Park">
+                    </div>
+                    <div v-if="['spot','food','shop'].includes(formEvent.category)" class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="label">營業時間</label>
+                            <input v-model="formEvent.hours" class="input" placeholder="09:00-18:00">
+                        </div>
+                        <div v-if="formEvent.category === 'spot'">
+                            <label class="label">門票 (Peso)</label>
+                            <input v-model="formEvent.ticket" class="input" placeholder="₱800">
+                        </div>
+                    </div>
+                    
+                    <!-- Flight Specifics -->
+                    <div v-if="formEvent.category === 'flight'" class="grid grid-cols-2 gap-4 bg-blue-50 p-3 rounded-xl">
+                        <input v-model="formEvent.depCode" class="input text-center uppercase" placeholder="TPE">
+                        <input v-model="formEvent.arrCode" class="input text-center uppercase" placeholder="CEB">
+                        <input v-model="formEvent.flightNum" class="input col-span-2 text-center" placeholder="5J311">
+                    </div>
+
+                    <div>
+                        <label class="label">交通至此點 (方式/時間)</label>
+                        <div class="flex gap-2">
+                            <select v-model="formEvent.transportMode" class="input w-1/3 bg-white">
+                                <option value="car">🚗 包車/Grab</option>
+                                <option value="walk">🚶 步行</option>
+                                <option value="bus">🚌 大眾運輸</option>
+                                <option value="ship">🚢 船</option>
+                            </select>
+                            <input v-model="formEvent.transportTime" class="input w-2/3" placeholder="例如：15 min">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="label">特色 & 備註</label>
+                        <textarea v-model="formEvent.note" class="input h-20" placeholder="必吃、注意事項..."></textarea>
+                    </div>
                 </div>
-                <div class="flex gap-3 mt-6">
-                    <button @click="showEventModal = false" class="flex-1 py-3 text-slate-400 font-bold text-sm rounded-xl hover:bg-slate-50 transition">取消</button>
-                    <button @click="saveEvent" class="flex-1 bg-teal-600 text-white rounded-xl py-3 font-bold shadow-lg shadow-teal-200 active:scale-95 transition">儲存</button>
+                <div class="grid grid-cols-2 gap-3 mt-6">
+                    <button @click="showEventModal=false" class="btn-secondary">取消</button>
+                    <button @click="saveEvent" class="btn-primary">儲存</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Expense Modal -->
+        <div v-if="showExpenseModal" class="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-4 backdrop-blur-sm">
+            <div class="bg-white w-full max-w-md rounded-3xl p-6 animate-slide-up">
+                <h3 class="text-xl font-black text-slate-800 mb-4">記一筆</h3>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="label">日期</label>
+                            <input type="date" v-model="formExpense.date" class="input">
+                        </div>
+                        <div>
+                            <label class="label">分類</label>
+                            <select v-model="formExpense.category" class="input bg-white">
+                                <option value="food">飲食</option>
+                                <option value="transport">交通</option>
+                                <option value="ticket">門票</option>
+                                <option value="shop">購物</option>
+                                <option value="hotel">住宿</option>
+                                <option value="other">其他</option>
+                            </select>
+                        </div>
+                    </div>
+                    <input v-model="formExpense.name" class="input" placeholder="項目名稱">
+                    <div class="relative">
+                        <span class="absolute left-3 top-3 text-slate-400 font-mono">₱</span>
+                        <input type="number" v-model="formExpense.amount" class="input pl-8 text-lg font-bold" placeholder="金額">
+                    </div>
+                    <div class="flex gap-2">
+                        <button @click="formExpense.payment='cash'" class="flex-1 py-2 rounded-lg border text-sm font-bold" :class="formExpense.payment==='cash'?'bg-teal-50 border-teal-500 text-teal-600':'border-slate-200 text-slate-400'">現金</button>
+                        <button @click="formExpense.payment='card'" class="flex-1 py-2 rounded-lg border text-sm font-bold" :class="formExpense.payment==='card'?'bg-teal-50 border-teal-500 text-teal-600':'border-slate-200 text-slate-400'">刷卡</button>
+                    </div>
+                </div>
+                <button @click="saveExpense" class="btn-primary mt-6 w-full">記錄</button>
+                <button @click="showExpenseModal=false" class="text-slate-400 text-sm w-full mt-3">取消</button>
+            </div>
+        </div>
+
+        <!-- Shopping Modal -->
+        <div v-if="showShoppingModal" class="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-4 backdrop-blur-sm">
+            <div class="bg-white w-full max-w-md rounded-3xl p-6 animate-slide-up">
+                <h3 class="text-xl font-black text-slate-800 mb-4">想買清單</h3>
+                <input v-model="formShopping.name" class="input mb-4" placeholder="商品名稱">
+                <div class="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center cursor-pointer hover:bg-slate-50 relative" @click="$refs.fileInput.click()">
+                    <i data-lucide="camera" class="w-6 h-6 mx-auto text-slate-300 mb-1"></i>
+                    <span class="text-xs text-slate-400">上傳圖片 (選填, 限1張)</span>
+                    <input type="file" ref="fileInput" class="hidden" accept="image/*" @change="handleImageUpload">
+                    <img v-if="formShopping.image" :src="formShopping.image" class="absolute inset-0 w-full h-full object-cover rounded-xl opacity-80">
+                </div>
+                <button @click="saveShopping" class="btn-primary mt-6 w-full">加入清單</button>
+                <button @click="showShoppingModal=false" class="text-slate-400 text-sm w-full mt-3">取消</button>
             </div>
         </div>
 
@@ -252,261 +477,234 @@
 
         createApp({
             setup() {
-                const firebaseReady = ref(false);
-                const dbInstance = ref(null);
-                const fireOps = ref(null);
+                // --- State ---
+                const currentTab = ref('schedule');
+                const currentDateIndex = ref(0);
+                const exchangeRate = ref(0.56); // 預設
+                const calcPHP = ref('');
+                const calcTWD = ref('0');
+                const currentWeather = ref({ temp: '--', feels_like: '--', icon: 'sun' });
 
-                // --- Initial Data (完整 8 天詳細行程) ---
-                const initialItinerary = [
-                    // Day 1: 2/11
-                    { id: '1-0', date: '2026-02-11', time: '03:15', title: '5J311 飛往馬尼拉', locationName: 'TPE T1 -> MNL T3', type: 'transport', tag: '轉機' },
-                    { id: '1-1', date: '2026-02-11', time: '05:45', title: '抵達馬尼拉 T3', locationName: 'MNL T3', type: 'note', tag: '需領行李' },
-                    { id: '1-1-b', date: '2026-02-11', time: '07:00', title: '機場早餐', locationName: 'MNL T3 美食街', type: 'food', tag: 'Jollibee' },
-                    { id: '1-2', date: '2026-02-11', time: '10:50', title: '5J585 飛往宿霧', locationName: 'MNL T3 -> CEB', type: 'transport' },
-                    { id: '1-3', date: '2026-02-11', time: '12:00', title: '抵達宿霧 & Grab', locationName: 'Mactan Airport', type: 'transport', tag: '叫車' },
-                    { id: '1-4', date: '2026-02-11', time: '13:00', title: '飯店 Check-in', locationName: '宿務派克蘭國際大飯店', type: 'hotel', lat: 10.317, lng: 123.903 },
-                    { id: '1-5', date: '2026-02-11', time: '14:00', title: 'Mall 附近換錢', locationName: 'Ayala Center Cebu', type: 'activity', tag: '匯率佳' },
-                    { id: '1-6', date: '2026-02-11', time: '15:00', title: '午餐 Mall (Kuya J / House of Lechon)', locationName: 'Ayala Center', type: 'food', tag: '推薦' },
-                    { id: '1-7', date: '2026-02-11', time: '18:00', title: '夜市 (Sugbo Mercado)', locationName: 'IT Park', type: 'food', tag: '晚餐' },
-
-                    // Day 2: 2/12
-                    { id: '2-0', date: '2026-02-12', time: '07:30', title: '飯店早餐', locationName: 'Parklane Hotel', type: 'food' },
-                    { id: '2-1', date: '2026-02-12', time: '09:00', title: '抵達 Cebu Ocean Park', locationName: 'SM Seaside 旁', type: 'spot', lat: 10.283, lng: 123.882 },
-                    { id: '2-2', date: '2026-02-12', time: '10:00', title: 'Grab 移動', locationName: '', type: 'transport' },
-                    { id: '2-3', date: '2026-02-12', time: '11:00', title: '水族館網美餐 (Aqua Dining)', locationName: '海底隧道旁', type: 'food', tag: '需預約' },
-                    { id: '2-4', date: '2026-02-12', time: '12:00', title: 'SM Seaside Mall 逛街', locationName: 'Blackbeard Seafood', type: 'activity' },
-                    { id: '2-5', date: '2026-02-12', time: '13:00', title: '麥哲倫十字架', locationName: 'Magellans Cross', type: 'spot' },
-                    { id: '2-6', date: '2026-02-12', time: '14:00', title: '聖嬰大教堂', locationName: 'Basilica del Santo Niño', type: 'spot' },
-                    { id: '2-7', date: '2026-02-12', time: '15:00', title: '聖佩德羅堡', locationName: 'Fort San Pedro', type: 'spot' },
-                    { id: '2-8', date: '2026-02-12', time: '18:00', title: '晚餐 (Texas Roadhouse)', locationName: 'SM Seaside', type: 'food', tag: '推薦' },
-
-                    // Day 3: 2/13
-                    { id: '3-0', date: '2026-02-13', time: '07:30', title: '飯店早餐', locationName: 'Parklane Hotel', type: 'food' },
-                    { id: '3-1', date: '2026-02-13', time: '10:40', title: '抵達港口 Pier 1', locationName: 'Cebu Pier 1', type: 'note', tag: '買午餐' },
-                    { id: '3-2', date: '2026-02-13', time: '11:40', title: '搭船 Ocean Jet', locationName: '前往薄荷島', type: 'transport', tag: 'KKDay票' },
-                    { id: '3-3', date: '2026-02-13', time: '14:00', title: '抵達 Tagbilaran', locationName: 'Bohol', type: 'transport', tag: '包車1200p' },
-                    { id: '3-4', date: '2026-02-13', time: '15:00', title: '飯店 Check-in', locationName: 'Best Western Plus (Alona)', type: 'hotel' },
-                    { id: '3-5', date: '2026-02-13', time: '16:00', title: '度假村玩', locationName: 'Swimming Pool', type: 'activity' },
-                    { id: '3-6', date: '2026-02-13', time: '18:00', title: '海灘夜市或附近餐廳', locationName: 'Giuseppe Pizzeria', type: 'food', tag: '推薦' },
-
-                    // Day 4: 2/14
-                    { id: '4-0', date: '2026-02-14', time: '07:30', title: '飯店早餐', locationName: 'Best Western', type: 'food' },
-                    { id: '4-1', date: '2026-02-14', time: '09:00', title: 'Napaling Reef', locationName: '沙丁魚浮潛', type: 'spot' },
-                    { id: '4-2', date: '2026-02-14', time: '11:00', title: 'Hinagdanan Cave', locationName: 'No Swim', type: 'spot' },
-                    { id: '4-3', date: '2026-02-14', time: '12:00', title: '午餐: Ubeco Restaurant', locationName: '韓系網美店', type: 'food', tag: '指定' },
-                    { id: '4-4', date: '2026-02-14', time: '14:00', title: '度假村玩', locationName: 'Best Western', type: 'activity' },
-                    { id: '4-5', date: '2026-02-14', time: '18:00', title: '海灘夜市或附近餐廳', locationName: 'Mist', type: 'food', tag: '推薦' },
-
-                    // Day 5: 2/15
-                    { id: '5-0', date: '2026-02-15', time: '05:30', title: '飯店早餐', locationName: 'Best Western', type: 'food', tag: '早起' },
-                    { id: '5-1', date: '2026-02-15', time: '06:00', title: '跳島一日遊', locationName: 'Balicasag (海龜)', type: 'spot', tag: '包船1500p' },
-                    { id: '5-2', date: '2026-02-15', time: '11:00', title: 'Virgin Island', locationName: '處女島', type: 'spot' },
-                    { id: '5-3', date: '2026-02-15', time: '14:00', title: 'Back to villa (拿行李)', locationName: 'Check-out', type: 'transport' },
-                    { id: '5-4', date: '2026-02-15', time: '14:30', title: 'Check in Villa Kalachuchi', locationName: 'Danao 區', type: 'hotel' },
-                    { id: '5-5', date: '2026-02-15', time: '18:00', title: '海灘夜市或附近餐廳', locationName: 'Luna Rossa', type: 'food', tag: '推薦' },
-
-                    // Day 6: 2/16
-                    { id: '6-0', date: '2026-02-16', time: '08:00', title: '無早餐有廚房', locationName: 'Villa Kalachuchi', type: 'note' },
-                    { id: '6-1', date: '2026-02-16', time: '09:00', title: '包車一日遊 (6500p)', locationName: 'Bohol 內陸', type: 'transport' },
-                    { id: '6-2', date: '2026-02-16', time: '10:00', title: '人造森林 & 眼鏡猴', locationName: 'Bilar / Tarsier', type: 'spot' },
-                    { id: '6-3', date: '2026-02-16', time: '12:00', title: 'Lunch (Rio Verde Floating)', locationName: '漂流竹筏', type: 'food' },
-                    { id: '6-4', date: '2026-02-16', time: '14:00', title: '巧克力山', locationName: 'Chocolate Hills', type: 'spot' },
-                    { id: '6-5', date: '2026-02-16', time: '15:30', title: '玩滑索及纜車 (Loboc)', locationName: 'Ecotourism Park', type: 'spot' },
-                    { id: '6-6', date: '2026-02-16', time: '16:30', title: 'Graham ATV Rental', locationName: 'ATV', type: 'spot' },
-                    { id: '6-7', date: '2026-02-16', time: '17:00', title: 'Back to villa', locationName: 'Villa Kalachuchi', type: 'transport' },
-                    { id: '6-8', date: '2026-02-16', time: '18:00', title: '海灘夜市或附近餐廳', locationName: 'Bohol Bee Farm', type: 'food', tag: '推薦' },
-
-                    // Day 7: 2/17
-                    { id: '7-0', date: '2026-02-17', time: '08:00', title: '無早餐有廚房', locationName: 'Villa Kalachuchi', type: 'note' },
-                    { id: '7-1', date: '2026-02-17', time: '11:00', title: 'Check-out & South Farm', locationName: '動物農場午餐', type: 'spot' },
-                    { id: '7-2', date: '2026-02-17', time: '12:00', title: '餵動物騎馬', locationName: 'South Farm', type: 'activity' },
-                    { id: '7-3', date: '2026-02-17', time: '14:30', title: 'Back to villa (拿行李)', locationName: 'Villa Kalachuchi', type: 'transport' },
-                    { id: '7-4', date: '2026-02-17', time: '15:30', title: '前往邦勞機場', locationName: 'Panglao Airport', type: 'transport' },
-                    { id: '7-5', date: '2026-02-17', time: '18:20', title: '5J616 飛往馬尼拉', locationName: 'TAG -> MNL', type: 'transport' },
-                    { id: '7-6', date: '2026-02-17', time: '20:00', title: '抵達馬尼拉 (Grab Car)', locationName: 'MNL T3', type: 'transport', tag: '勿選Taxi' },
-                    { id: '7-7', date: '2026-02-17', time: '21:00', title: '飯店 Checkin', locationName: 'Uptown Parksuites Tower 2', type: 'hotel' },
-                    { id: '7-8', date: '2026-02-17', time: '21:30', title: '晚餐', locationName: 'Shake Shack', type: 'food', tag: '推薦' },
-
-                    // Day 8: 2/18
-                    { id: '8-0', date: '2026-02-18', time: '09:00', title: '無早餐有廚房', locationName: 'Wildflour Cafe', type: 'food', tag: '推薦' },
-                    { id: '8-1', date: '2026-02-18', time: '10:00', title: '逛市區景點', locationName: 'BGC', type: 'activity' },
-                    { id: '8-2', date: '2026-02-18', time: '11:00', title: 'Mind Museum', locationName: 'Jose Yao Campos Park', type: 'spot' },
-                    { id: '8-3', date: '2026-02-18', time: '12:00', title: '午餐', locationName: 'Mamou Meats', type: 'food', tag: '推薦' },
-                    { id: '8-4', date: '2026-02-18', time: '18:00', title: '晚餐', locationName: 'George and Onnie\'s', type: 'food', tag: '推薦' },
-                    { id: '8-5', date: '2026-02-18', time: '19:00', title: '搭飛機 Check-in', locationName: 'MNL T3', type: 'transport' },
-                    { id: '8-6', date: '2026-02-18', time: '23:35', title: '5J310 返台', locationName: 'MNL -> TPE', type: 'transport' }
+                // Data
+                const tabs = [
+                    { id: 'schedule', label: '行程', icon: 'map-pin' },
+                    { id: 'info', label: '資訊', icon: 'info' },
+                    { id: 'shopping', label: '購物', icon: 'shopping-bag' },
+                    { id: 'expenses', label: '花費', icon: 'banknote' }
                 ];
-
-                const tabs = [{ id: 'schedule', label: '行程', icon: 'calendar' }, { id: 'map', label: '地圖', icon: 'map' }];
                 
                 const tripDays = [
-                    { date: '2026-02-11', dateShort: '2/11', dayShort: 'Wed', dayName:'週三', dayNum: '11' }, 
-                    { date: '2026-02-12', dateShort: '2/12', dayShort: 'Thu', dayName:'週四', dayNum: '12' },
-                    { date: '2026-02-13', dateShort: '2/13', dayShort: 'Fri', dayName:'週五', dayNum: '13' }, 
-                    { date: '2026-02-14', dateShort: '2/14', dayShort: 'Sat', dayName:'週六', dayNum: '14' },
-                    { date: '2026-02-15', dateShort: '2/15', dayShort: 'Sun', dayName:'週日', dayNum: '15' }, 
-                    { date: '2026-02-16', dateShort: '2/16', dayShort: 'Mon', dayName:'週一', dayNum: '16' },
-                    { date: '2026-02-17', dateShort: '2/17', dayShort: 'Tue', dayName:'週二', dayNum: '17' }, 
-                    { date: '2026-02-18', dateShort: '2/18', dayShort: 'Wed', dayName:'週三', dayNum: '18' }
+                    { date: '2026-02-11', dayShort: '週三', dayNum: '11' },
+                    { date: '2026-02-12', dayShort: '週四', dayNum: '12' },
+                    { date: '2026-02-13', dayShort: '週五', dayNum: '13' },
+                    { date: '2026-02-14', dayShort: '週六', dayNum: '14' },
+                    { date: '2026-02-15', dayShort: '週日', dayNum: '15' },
+                    { date: '2026-02-16', dayShort: '週一', dayNum: '16' },
+                    { date: '2026-02-17', dayShort: '週二', dayNum: '17' },
+                    { date: '2026-02-18', dayShort: '週三', dayNum: '18' }
                 ];
 
-                const currentTab = ref('schedule');
-                const showEventModal = ref(false);
-                const itinerary = ref([]);
+                const events = ref([]);
+                const expenseList = ref([]);
+                const shoppingList = ref([]);
 
-                // 預設日期為第一天
-                const formEvent = ref({ 
-                    date: '2026-02-11', 
-                    time: '12:00', 
-                    title: '', 
-                    locationName: '', 
-                    type: 'food', 
-                    tag: '', 
-                    lat: null, 
-                    lng: null 
+                // Modals
+                const showEventModal = ref(false);
+                const showExpenseModal = ref(false);
+                const showShoppingModal = ref(false);
+                const isEditing = ref(false);
+
+                // Forms
+                const formEvent = ref({});
+                const formExpense = ref({ date: new Date().toISOString().split('T')[0], payment: 'cash' });
+                const formShopping = ref({});
+
+                // --- Firebase Listeners ---
+                onMounted(() => {
+                    lucide.createIcons();
+                    
+                    window.addEventListener('firebase-ready', () => {
+                        const { collection, onSnapshot, query, orderBy } = window.fireOps;
+                        const db = window.db;
+
+                        // Events
+                        onSnapshot(query(collection(db, 'events_v3'), orderBy('order')), (snap) => {
+                            events.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                        });
+                        // Expenses
+                        onSnapshot(query(collection(db, 'expenses_v3'), orderBy('date', 'desc')), (snap) => {
+                            expenseList.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                        });
+                        // Shopping
+                        onSnapshot(collection(db, 'shopping_v3'), (snap) => {
+                            shoppingList.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                        });
+                        
+                        fetchWeather();
+                    });
                 });
 
-                let map = null, markersLayer = null, pathLayer = null;
+                watch([currentTab, events, expenseList], () => nextTick(() => lucide.createIcons()));
 
-                const initFirebaseListeners = async () => {
-                    const { collection, onSnapshot, query, orderBy, addDoc, getDocs } = fireOps.value;
-                    const db = dbInstance.value;
+                // --- Computed ---
+                const currentDayEvents = computed(() => {
+                    return events.value.filter(e => e.date === tripDays[currentDateIndex.value].date).sort((a,b) => a.order - b.order);
+                });
 
-                    // 使用新的集合名稱以確保資料重新寫入 (V2)
-                    const collectionName = "remi_trip_2026_final_v2";
-                    const evColl = collection(db, collectionName);
-                    
-                    try {
-                        const snapshotCheck = await getDocs(evColl);
-                        if (snapshotCheck.empty) {
-                            console.log("Empty DB, populating initial itinerary...");
-                            // 批次寫入資料
-                            const promises = initialItinerary.map(item => addDoc(evColl, item));
-                            await Promise.all(promises);
-                            console.log("Data populated!");
-                        }
-                    } catch (e) {
-                        console.error("Error populating data:", e);
-                    }
+                const totalExpense = computed(() => {
+                    return expenseList.value.reduce((sum, item) => sum + Number(item.amount), 0);
+                });
 
-                    // Listen to Itinerary
-                    const qItinerary = query(collection(db, collectionName)); 
-                    onSnapshot(qItinerary, (snapshot) => {
-                        itinerary.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                        fetchWeather(); 
-                        if (currentTab.value === 'map') updateMapMarkers();
-                    });
-                };
+                // --- Methods ---
                 
-                const forceInit = async () => {
-                    window.location.reload();
+                // Weather Mock (Or fetch from OpenMeteo)
+                const fetchWeather = async () => {
+                    // 簡單模擬，實際可接 API
+                    const targetLat = 10.31; // Cebu
+                    try {
+                        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${targetLat}&longitude=123.89&current_weather=true`);
+                        const data = await res.json();
+                        currentWeather.value = {
+                            temp: Math.round(data.current_weather.temperature),
+                            feels_like: Math.round(data.current_weather.temperature + 2),
+                            icon: 'sun' // 簡化
+                        };
+                    } catch(e) {}
+                };
+
+                // Calculator
+                const calcToTWD = () => {
+                    if(!calcPHP.value) calcTWD.value = 0;
+                    else calcTWD.value = (calcPHP.value * exchangeRate.value).toFixed(0);
+                };
+
+                // Event CRUD
+                const openModal = () => {
+                    isEditing.value = false;
+                    formEvent.value = { 
+                        date: tripDays[currentDateIndex.value].date,
+                        category: 'spot',
+                        transportMode: 'car',
+                        order: currentDayEvents.value.length
+                    };
+                    showEventModal.value = true;
+                };
+
+                const editEvent = (event) => {
+                    isEditing.value = true;
+                    formEvent.value = { ...event };
+                    showEventModal.value = true;
                 };
 
                 const saveEvent = async () => {
-                    const { addDoc, collection } = fireOps.value;
-                    const collectionName = "remi_trip_2026_final_v2";
-                    await addDoc(collection(dbInstance.value, collectionName), {
-                        ...formEvent.value,
-                        weather: null,
-                        createdAt: new Date()
-                    });
+                    const { addDoc, updateDoc, collection, doc } = window.fireOps;
+                    const db = window.db;
+                    
+                    if (isEditing.value) {
+                        await updateDoc(doc(db, 'events_v3', formEvent.value.id), formEvent.value);
+                    } else {
+                        await addDoc(collection(db, 'events_v3'), formEvent.value);
+                    }
                     showEventModal.value = false;
                 };
 
-                const deleteEvent = async (id) => {
-                    if(!confirm('確定刪除？')) return;
-                    const { deleteDoc, doc } = fireOps.value;
-                    const collectionName = "remi_trip_2026_final_v2";
-                    await deleteDoc(doc(dbInstance.value, collectionName, id));
-                };
-
-                const scrollToDay = (date) => {
-                    const el = document.getElementById('day-' + date);
-                    if (el) {
-                        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                const deleteEvent = async () => {
+                    if (confirm('確定刪除此行程？')) {
+                        const { deleteDoc, doc } = window.fireOps;
+                        await deleteDoc(doc(window.db, 'events_v3', formEvent.value.id));
+                        showEventModal.value = false;
                     }
                 };
 
-                const switchTab = (tabId) => {
-                    currentTab.value = tabId;
-                    if(tabId === 'map') nextTick(() => { if(!map) initMap(); else { map.invalidateSize(); updateMapMarkers(); } });
+                // Drag & Drop Logic (Simple Swap)
+                let dragStartIndex = -1;
+                const dragStart = (idx, e) => {
+                    dragStartIndex = idx;
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.target.classList.add('dragging');
                 };
-                const openMapForEvent = (event) => { switchTab('map'); setTimeout(() => { if(event.lat) { map.setView([event.lat, event.lng], 16); L.popup().setLatLng([event.lat, event.lng]).setContent(event.title).openOn(map); } }, 500); };
+                const dragDrop = async (dropIndex) => {
+                    document.querySelector('.dragging')?.classList.remove('dragging');
+                    if (dragStartIndex === dropIndex) return;
 
-                // --- Helper Functions ---
-                const getEventsForDay = (date) => {
-                    return itinerary.value
-                        .filter(e => e.date === date)
-                        .sort((a, b) => a.time.localeCompare(b.time));
-                };
+                    // Swap orders in local first then batch update
+                    const items = [...currentDayEvents.value];
+                    const movedItem = items[dragStartIndex];
+                    items.splice(dragStartIndex, 1);
+                    items.splice(dropIndex, 0, movedItem);
 
-                // (Standard helpers: getWeatherIcon, getTypeName, etc. same as before)
-                const getWeatherIcon = (code) => code <= 3 ? 'sun' : 'cloud';
-                const getTypeName = (type) => ({'food':'餐廳', 'spot':'景點', 'transport':'交通', 'hotel':'住宿', 'note':'筆記', 'activity':'活動', 'meal':'餐飲'})[type] || '其他';
-                const getTypeStyle = (type) => {
-                    if(type==='food' || type==='meal') return 'bg-orange-50 text-orange-600 border-orange-100';
-                    if(type==='transport') return 'bg-blue-50 text-blue-600 border-blue-100';
-                    if(type==='hotel') return 'bg-indigo-50 text-indigo-600 border-indigo-100';
-                    if(type==='note') return 'bg-red-50 text-red-600 border-red-100';
-                    return 'bg-teal-50 text-teal-600 border-teal-100';
-                };
-                const getTypeColor = (type) => {
-                    if(type==='food' || type==='meal') return 'bg-orange-400';
-                    if(type==='transport') return 'bg-blue-400';
-                    if(type==='hotel') return 'bg-indigo-400';
-                    if(type==='note') return 'bg-red-400';
-                    return 'bg-teal-400';
-                };
-                
-                // (Map logic same as before)
-                const initMap = () => {
-                    if (map) return;
-                    map = L.map('map-container', { zoomControl: false }).setView([10.3157, 123.8854], 12);
-                    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
-                    markersLayer = L.layerGroup().addTo(map);
-                    updateMapMarkers();
-                };
-                const updateMapMarkers = () => {
-                    if (!map || !markersLayer) return;
-                    markersLayer.clearLayers();
-                    // Show markers for all days or current day? Let's show all for overview
-                    const events = itinerary.value.filter(e => e.lat && e.lng);
-                    const latlngs = [];
-                    events.forEach((e, idx) => {
-                        const point = [e.lat, e.lng];
-                        latlngs.push(point);
-                        const icon = L.divIcon({ className: 'custom-div-icon', html: idx + 1, iconSize: [24, 24] });
-                        L.marker(point, { icon }).bindPopup(e.title).addTo(markersLayer);
+                    // Update all orders in Firebase
+                    const { writeBatch, doc } = window.fireOps;
+                    const batch = writeBatch(window.db);
+                    items.forEach((item, idx) => {
+                        const ref = doc(window.db, 'events_v3', item.id);
+                        batch.update(ref, { order: idx });
                     });
-                    if (latlngs.length > 0) {
-                        const bounds = L.latLngBounds(latlngs);
-                        map.fitBounds(bounds, { padding: [50, 50] });
+                    await batch.commit();
+                };
+
+                // Expenses & Shopping CRUD (Simplified)
+                const saveExpense = async () => {
+                    await window.fireOps.addDoc(window.fireOps.collection(window.db, 'expenses_v3'), formExpense.value);
+                    showExpenseModal.value = false;
+                    formExpense.value = { date: new Date().toISOString().split('T')[0], payment: 'cash' };
+                };
+
+                const handleImageUpload = (e) => {
+                    const file = e.target.files[0];
+                    if(file) {
+                        if(file.size > 500000) { alert('圖片太大，請縮小'); return; }
+                        const reader = new FileReader();
+                        reader.onload = (e) => formShopping.value.image = e.target.result;
+                        reader.readAsDataURL(file);
                     }
                 };
-                const locateUser = () => { if(map) map.locate({ setView: true, maxZoom: 14 }); };
-                const fitBounds = () => updateMapMarkers();
-                const fetchWeather = async () => {}; // simplified for now
 
-                // Init
-                window.addEventListener('firebase-ready', () => {
-                    dbInstance.value = window.db;
-                    fireOps.value = window.firestoreOps;
-                    initFirebaseListeners();
-                    firebaseReady.value = true;
-                });
+                const saveShopping = async () => {
+                    await window.fireOps.addDoc(window.fireOps.collection(window.db, 'shopping_v3'), formShopping.value);
+                    showShoppingModal.value = false;
+                    formShopping.value = {};
+                };
 
-                onMounted(() => { lucide.createIcons(); });
-                watch([currentTab, itinerary], () => nextTick(() => lucide.createIcons()));
+                const deleteItem = async (col, id) => {
+                    if(confirm('確定刪除？')) {
+                        await window.fireOps.deleteDoc(window.fireOps.doc(window.db, `${col}_v3`, id));
+                    }
+                };
+
+                // Navigation
+                const openMap = (keyword) => {
+                    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(keyword)}`, '_blank');
+                };
+
+                // Icons Helpers
+                const getCategoryIcon = (c) => ({ spot: 'map-pin', food: 'utensils', hotel: 'bed', shop: 'shopping-bag', flight: 'plane', other: 'circle' })[c] || 'circle';
+                const getCategoryColor = (c) => ({ spot: 'bg-teal-500', food: 'bg-orange-400', hotel: 'bg-indigo-500', shop: 'bg-pink-400', flight: 'bg-blue-500', other: 'bg-slate-400' })[c] || 'bg-slate-400';
+                const getTransportIcon = (t) => ({ car: 'car', walk: 'footprints', bus: 'bus', ship: 'ship' })[t] || 'arrow-down';
+                const getExpenseIcon = (c) => ({ food: 'utensils', transport: 'car', ticket: 'ticket', shop: 'shopping-bag', hotel: 'bed', other: 'banknote' })[c];
 
                 return {
-                    firebaseReady, tabs, currentTab, switchTab, tripDays, 
-                    itinerary, getEventsForDay, scrollToDay,
-                    showEventModal, formEvent,
-                    saveEvent, deleteEvent, forceInit,
-                    getWeatherIcon, getTypeName, getTypeStyle, getTypeColor, openMapForEvent, locateUser, fitBounds
+                    currentTab, tripDays, currentDateIndex, currentDayEvents, expenseList, shoppingList,
+                    totalExpense, exchangeRate, calcPHP, calcTWD, currentWeather,
+                    showEventModal, showExpenseModal, showShoppingModal, formEvent, formExpense, formShopping, isEditing,
+                    changeDate: (i) => currentDateIndex.value = i,
+                    openModal, editEvent, saveEvent, deleteEvent,
+                    saveExpense, saveShopping, handleImageUpload, deleteItem,
+                    openMap, calcToTWD,
+                    getCategoryIcon, getCategoryColor, getTransportIcon, getExpenseIcon,
+                    dragStart, dragDrop
                 };
             }
         }).mount('#app');
     </script>
+    <style>
+        /* CSS Utilities */
+        .btn-primary { @apply bg-teal-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-teal-100 active:scale-95 transition-transform; }
+        .btn-secondary { @apply py-3 text-slate-400 font-bold hover:bg-slate-50 rounded-xl transition-colors; }
+        .input { @apply w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all; }
+        .label { @apply block text-xs font-bold text-slate-400 mb-1 ml-1; }
+        .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    </style>
 </body>
 </html>
