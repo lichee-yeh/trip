@@ -15,11 +15,12 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- Firebase 設定 (已整合您的鑰匙與資料庫功能) -->
+    <!-- Firebase 設定 (已整合您的截圖資訊) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         
+        // ▼▼▼ 您的專屬鑰匙 (已填入) ▼▼▼
         const firebaseConfig = {
             apiKey: "AIzaSyA1JHrkPbANS-g7X8OudpD0w819ZXA8-7A",
             authDomain: "family-trip-2026-1c43d.firebaseapp.com",
@@ -27,14 +28,14 @@
             storageBucket: "family-trip-2026-1c43d.firebasestorage.app",
             messagingSenderId: "157512457202",
             appId: "1:157512457202:web:b211df6298c0057e62e96b",
-            measurementId: "G-GMJH1L7WSS"
+            measurementId: "G-LDQW10LQZ4"
         };
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         
         window.db = db;
-        window.firestoreOps = { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy };
+        window.firestoreOps = { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs };
         window.dispatchEvent(new Event('firebase-ready'));
     </script>
 
@@ -67,7 +68,7 @@
         <!-- Loading Screen -->
         <div v-if="!firebaseReady" class="absolute inset-0 z-[9999] bg-white flex flex-col items-center justify-center">
             <div class="w-12 h-12 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mb-4"></div>
-            <p class="text-teal-600 font-bold animate-pulse">正在同步雲端行程...</p>
+            <p class="text-teal-600 font-bold animate-pulse">正在連線雲端行程...</p>
         </div>
 
         <!-- Header -->
@@ -93,7 +94,7 @@
                 <button v-for="(day, index) in tripDays" :key="index" @click="changeDate(index)"
                     class="flex-shrink-0 flex flex-col items-center justify-center w-14 h-16 rounded-2xl transition-all duration-300 border relative overflow-hidden snap-start"
                     :class="currentDateIndex === index ? 'bg-teal-500 text-white shadow-float border-teal-500 transform scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-teal-200'">
-                    <span class="text-[10px] opacity-80 uppercase font-medium">{{ day.dayName }}</span>
+                    <span class="text-[10px] opacity-80 uppercase font-medium">{{ day.dayShort }}</span>
                     <span class="text-lg font-bold">{{ day.dayNum }}</span>
                     <div v-if="hasEvent(day.date)" class="absolute bottom-1.5 w-1 h-1 rounded-full transition-colors" :class="currentDateIndex === index ? 'bg-white' : 'bg-teal-400'"></div>
                 </button>
@@ -324,7 +325,6 @@
                 const fireOps = ref(null);
 
                 // --- Initial Data (The "Normal" Itinerary) ---
-                // 這裡預載了您要求的修正後行程
                 const initialItinerary = [
                     // Day 1: 2/11
                     { id: 'init-1', date: '2026-02-11', time: '12:15', title: '抵達宿霧 CEB', locationName: 'Mactan Airport', type: 'transport', lat: 10.308, lng: 123.979 },
@@ -334,4 +334,221 @@
                     { id: 'init-4', date: '2026-02-12', time: '09:00', title: 'Ocean Park', locationName: 'SM Seaside Area', type: 'spot', lat: 10.283, lng: 123.882 },
                     { id: 'init-5', date: '2026-02-12', time: '12:00', title: 'Aqua Dining', locationName: '海底隧道旁', type: 'food', tag: '需預約' },
                     { id: 'init-6', date: '2026-02-12', time: '18:00', title: 'Texas Roadhouse', locationName: 'SM Seaside', type: 'food', tag: '4.8⭐', lat: 10.282, lng: 123.881 },
-                    //
+                    // Day 3: 2/13
+                    { id: 'init-7', date: '2026-02-13', time: '11:40', title: '搭船 Ocean Jet', locationName: 'Cebu Pier 1', type: 'transport' },
+                    { id: 'init-8', date: '2026-02-13', time: '15:00', title: 'Check-in', locationName: 'Best Western Alona', type: 'hotel', lat: 9.546, lng: 123.774 },
+                    { id: 'init-9', date: '2026-02-13', time: '18:00', title: 'Giuseppe Pizzeria', locationName: 'Alona Beach Rd', type: 'food', tag: '4.3⭐', lat: 9.549, lng: 123.775 },
+                    // Day 4: 2/14
+                    { id: 'init-10', date: '2026-02-14', time: '09:00', title: 'Napaling Reef', locationName: '沙丁魚風暴', type: 'spot', lat: 9.605, lng: 123.770 },
+                    { id: 'init-11', date: '2026-02-14', time: '11:30', title: 'Ubeco 網美午餐', locationName: 'Panglao (近景點)', type: 'food', tag: '🏆首選', lat: 9.6056, lng: 123.7742 },
+                    { id: 'init-12', date: '2026-02-14', time: '13:30', title: 'Zipline / ATV', locationName: 'Bohol', type: 'spot' },
+                    { id: 'init-13', date: '2026-02-14', time: '18:00', title: 'Mist 森林系晚餐', locationName: 'Danao/Alona', type: 'food', tag: '需訂位', lat: 9.554, lng: 123.766 },
+                    // Day 5: 2/15
+                    { id: 'init-14', date: '2026-02-15', time: '06:00', title: '出海追海豚', locationName: 'Balicasag', type: 'spot', lat: 9.518, lng: 123.680 },
+                    { id: 'init-15', date: '2026-02-15', time: '15:00', title: '換飯店', locationName: 'Villa Kalachuchi', type: 'hotel', lat: 9.556, lng: 123.760 },
+                    { id: 'init-16', date: '2026-02-15', time: '18:00', title: 'Luna Rossa', locationName: '素食義大利菜', type: 'food', tag: '清爽', lat: 9.553, lng: 123.762 },
+                    // Day 6: 2/16
+                    { id: 'init-17', date: '2026-02-16', time: '09:00', title: '巧克力山', locationName: 'Chocolate Hills', type: 'spot', lat: 9.829, lng: 124.139 },
+                    { id: 'init-18', date: '2026-02-16', time: '18:00', title: 'Bohol Bee Farm', locationName: '懸崖海景', type: 'food', tag: '有機', lat: 9.576, lng: 123.821 },
+                    // Day 7: 2/17
+                    { id: 'init-19', date: '2026-02-17', time: '13:00', title: '搭船回宿霧', locationName: 'Tagbilaran Port', type: 'transport' },
+                    { id: 'init-20', date: '2026-02-17', time: '18:35', title: '飛往馬尼拉', locationName: 'CEB -> MNL', type: 'transport' },
+                    { id: 'init-21', date: '2026-02-17', time: '20:30', title: 'Shake Shack', locationName: 'BGC', type: 'food', tag: '簡單吃', lat: 14.550, lng: 121.050 },
+                    // Day 8: 2/18
+                    { id: 'init-22', date: '2026-02-18', time: '10:00', title: 'Mind Museum', locationName: 'BGC', type: 'spot', lat: 14.551, lng: 121.045 },
+                    { id: 'init-23', date: '2026-02-18', time: '12:00', title: 'Mamou Meats', locationName: 'Uptown', type: 'food', tag: '🏆5.0⭐', lat: 14.557, lng: 121.054 },
+                ];
+
+                const tabs = [{ id: 'schedule', label: '行程', icon: 'calendar' }, { id: 'money', label: '分帳', icon: 'wallet' }, { id: 'map', label: '地圖', icon: 'map' }];
+                const members = ['爸爸', '媽媽', '阿嬤', 'Remi'];
+                const tripDays = [
+                    { date: '2026-02-11', dateShort: '2/11', dayShort: 'Tue', dayName:'週二', dayNum: '11' }, { date: '2026-02-12', dateShort: '2/12', dayShort: 'Wed', dayName:'週三', dayNum: '12' },
+                    { date: '2026-02-13', dateShort: '2/13', dayShort: 'Thu', dayName:'週四', dayNum: '13' }, { date: '2026-02-14', dateShort: '2/14', dayShort: 'Fri', dayName:'週五', dayNum: '14' },
+                    { date: '2026-02-15', dateShort: '2/15', dayShort: 'Sat', dayName:'週六', dayNum: '15' }, { date: '2026-02-16', dateShort: '2/16', dayShort: 'Sun', dayName:'週日', dayNum: '16' },
+                    { date: '2026-02-17', dateShort: '2/17', dayShort: 'Mon', dayName:'週一', dayNum: '17' }, { date: '2026-02-18', dateShort: '2/18', dayShort: 'Tue', dayName:'週二', dayNum: '18' }
+                ];
+
+                const currentTab = ref('schedule');
+                const currentDateIndex = ref(0);
+                const showEventModal = ref(false);
+                const showExpenseModal = ref(false);
+                const showRateModal = ref(false);
+                const exchangeRate = ref(0.56);
+                const itinerary = ref([]);
+                const expenses = ref([]);
+
+                const formEvent = ref({ time: '12:00', title: '', locationName: '', type: 'food', tag: '', lat: null, lng: null });
+                const formExpense = ref({ item: '', amount: '', currency: 'PHP', payer: '爸爸' });
+
+                let map = null, markersLayer = null, pathLayer = null;
+
+                const initFirebaseListeners = async () => {
+                    const { collection, onSnapshot, query, orderBy, addDoc, getDocs } = fireOps.value;
+                    const db = dbInstance.value;
+
+                    // --- First time check: Populate data if empty ---
+                    const evColl = collection(db, "events");
+                    const snapshotCheck = await getDocs(evColl);
+                    if (snapshotCheck.empty) {
+                        console.log("Empty DB, populating initial itinerary...");
+                        for (const item of initialItinerary) {
+                            await addDoc(evColl, item);
+                        }
+                    }
+
+                    // Listen to Itinerary
+                    const qItinerary = query(collection(db, "events")); 
+                    onSnapshot(qItinerary, (snapshot) => {
+                        itinerary.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        fetchWeather(); 
+                        if (currentTab.value === 'map') updateMapMarkers();
+                    });
+
+                    // Listen to Expenses
+                    const qExpenses = query(collection(db, "expenses"));
+                    onSnapshot(qExpenses, (snapshot) => {
+                        expenses.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    });
+                };
+
+                const saveEvent = async () => {
+                    const { addDoc, collection } = fireOps.value;
+                    await addDoc(collection(dbInstance.value, "events"), {
+                        ...formEvent.value,
+                        date: tripDays[currentDateIndex.value].date,
+                        weather: null,
+                        createdAt: new Date()
+                    });
+                    showEventModal.value = false;
+                };
+
+                const deleteEvent = async (id) => {
+                    if(!confirm('確定刪除？')) return;
+                    const { deleteDoc, doc } = fireOps.value;
+                    await deleteDoc(doc(dbInstance.value, "events", id));
+                };
+
+                const saveExpense = async () => {
+                    const { addDoc, collection } = fireOps.value;
+                    await addDoc(collection(dbInstance.value, "expenses"), {
+                        ...formExpense.value,
+                        createdAt: new Date()
+                    });
+                    showExpenseModal.value = false;
+                    formExpense.value = { item: '', amount: '', currency: 'PHP', payer: '爸爸' };
+                };
+
+                const deleteExpense = async (id) => {
+                    if(!confirm('確定刪除這筆帳？')) return;
+                    const { deleteDoc, doc } = fireOps.value;
+                    await deleteDoc(doc(dbInstance.value, "expenses", id));
+                };
+
+                const saveRate = () => {
+                    showRateModal.value = false;
+                    alert("匯率已更新！");
+                };
+
+                const initMap = () => {
+                    if (map) return;
+                    map = L.map('map-container', { zoomControl: false }).setView([10.3157, 123.8854], 12);
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
+                    markersLayer = L.layerGroup().addTo(map);
+                    pathLayer = L.layerGroup().addTo(map);
+                    updateMapMarkers();
+                };
+
+                const updateMapMarkers = () => {
+                    if (!map || !markersLayer) return;
+                    markersLayer.clearLayers();
+                    pathLayer.clearLayers();
+                    const events = currentDayEvents.value.filter(e => e.lat && e.lng);
+                    if (events.length === 0) return;
+                    const latlngs = [];
+                    events.forEach((e, idx) => {
+                        const point = [e.lat, e.lng];
+                        latlngs.push(point);
+                        const icon = L.divIcon({ className: 'custom-div-icon', html: idx + 1, iconSize: [24, 24] });
+                        L.marker(point, { icon }).bindPopup(e.title).addTo(markersLayer);
+                    });
+                    if (latlngs.length > 1) L.polyline(latlngs, { color: '#14b8a6', dashArray: '5, 10', weight: 3 }).addTo(pathLayer);
+                    const bounds = L.latLngBounds(latlngs);
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                };
+
+                const locateUser = () => {
+                    if (!map) return;
+                    map.locate({ setView: true, maxZoom: 14 });
+                    map.on('locationfound', (e) => {
+                        L.circleMarker(e.latlng, { radius: 8, color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 1 }).bindPopup("你在這裡").addTo(map).openPopup();
+                    });
+                };
+                const fitBounds = () => updateMapMarkers();
+
+                const currentDayEvents = computed(() => {
+                    const date = tripDays[currentDateIndex.value].date;
+                    return itinerary.value.filter(e => e.date === date).sort((a,b) => a.time.localeCompare(b.time));
+                });
+                
+                const totalExpenseTwd = computed(() => expenses.value.reduce((sum, ex) => sum + (ex.amount * (ex.currency === 'PHP' ? exchangeRate.value : 1)), 0));
+                
+                const balances = computed(() => {
+                    const perPerson = totalExpenseTwd.value / members.length;
+                    const result = {};
+                    members.forEach(m => result[m] = -perPerson);
+                    expenses.value.forEach(ex => result[ex.payer] += (ex.amount * (ex.currency === 'PHP' ? exchangeRate.value : 1)));
+                    return result;
+                });
+
+                const fetchWeather = async () => {
+                     itinerary.value.forEach(async (ev) => {
+                        if (!ev.lat || !ev.lng || ev.weather) return;
+                        try {
+                            const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${ev.lat}&longitude=${ev.lng}&current_weather=true`);
+                            const data = await res.json();
+                            ev.weather = { temp: data.current_weather.temperature, code: data.current_weather.weathercode };
+                        } catch(e) {}
+                    });
+                };
+                
+                const getWeatherIcon = (code) => code <= 3 ? 'sun' : 'cloud';
+                const hasEvent = (date) => itinerary.value.some(e => e.date === date);
+                const getTypeName = (type) => ({'food':'餐廳', 'spot':'景點', 'transport':'交通', 'hotel':'住宿'})[type] || '其他';
+                const getAvatar = (name) => ({ '爸爸': '👨🏻', '媽媽': '👩🏻', '阿嬤': '👵🏻', 'Remi': '👧🏻' })[name] || '👤';
+                const formatNumber = (num) => new Intl.NumberFormat().format(Math.round(num));
+
+                const changeDate = (idx) => { currentDateIndex.value = idx; if(currentTab.value === 'map') setTimeout(updateMapMarkers, 300); };
+                const switchTab = (tabId) => {
+                    currentTab.value = tabId;
+                    if(tabId === 'map') nextTick(() => { if(!map) initMap(); else { map.invalidateSize(); updateMapMarkers(); } });
+                };
+                const openMapForEvent = (event) => { switchTab('map'); setTimeout(() => { if(event.lat) { map.setView([event.lat, event.lng], 16); L.popup().setLatLng([event.lat, event.lng]).setContent(event.title).openOn(map); } }, 500); };
+
+                window.addEventListener('firebase-ready', () => {
+                    dbInstance.value = window.db;
+                    fireOps.value = window.firestoreOps;
+                    initFirebaseListeners();
+                    firebaseReady.value = true;
+                });
+
+                onMounted(() => { lucide.createIcons(); });
+                watch(currentTab, () => nextTick(() => lucide.createIcons()));
+
+                return {
+                    firebaseReady, tabs, currentTab, switchTab, tripDays, currentDateIndex, changeDate, hasEvent,
+                    currentDayEvents, expenses, totalExpenseTwd, balances, members, exchangeRate,
+                    showEventModal, showExpenseModal, showRateModal, formEvent, formExpense,
+                    saveEvent, deleteEvent, saveExpense, deleteExpense, saveRate,
+                    getAvatar, getWeatherIcon, getTypeName, formatNumber, openMapForEvent, locateUser, fitBounds
+                };
+            }
+        }).mount('#app');
+    </script>
+    <style>
+        .input-field { width: 100%; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; font-size: 14px; outline: none; transition: all 0.2s; }
+        .input-field:focus { border-color: #2dd4bf; background-color: white; box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.1); }
+        .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    </style>
+</body>
+</html>
