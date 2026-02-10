@@ -1,4 +1,4 @@
-<!-- Version: v20.0 (Fixed: Images, FAB Z-Index, Map Rendering) -->
+<!-- Version: v21.0 (Fixed: Rate Calc, Popup Icons, FAB Button) -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -110,14 +110,14 @@
             position: relative; z-index: 10;
         }
 
-        /* 地圖容器 - 強制全螢幕 */
+        /* 地圖容器 */
         #map-container {
             width: 100%;
             height: 100%;
             position: absolute;
             top: 0;
             left: 0;
-            z-index: 0; /* 修正 z-index 確保在控制項下方 */
+            z-index: 0; 
             background-color: #e5e7eb;
         }
 
@@ -289,8 +289,8 @@
 
         </main>
 
-        <!-- Floating Add Button (Fixed Z-Index & Position) -->
-        <button v-if="currentTab==='schedule'" @click="showEventModal=true" class="fixed bottom-24 right-6 w-14 h-14 bg-secondary rounded-full shadow-lg text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-50">
+        <!-- Floating Add Button (Fixed at App Root Level) -->
+        <button v-if="currentTab==='schedule'" @click="showEventModal=true" class="fixed bottom-24 right-6 w-14 h-14 bg-secondary rounded-full shadow-lg text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-[60]">
             <i data-lucide="plus" class="w-8 h-8"></i>
         </button>
 
@@ -328,7 +328,7 @@
                             <i data-lucide="arrow-right" class="w-6 h-6 text-white/50 mt-6"></i>
                             <div class="flex-1">
                                 <label class="text-[10px] opacity-70 block mb-1">TWD</label>
-                                <div class="text-2xl font-mono font-bold p-3">$ {{ (calcPHP * 0.56).toFixed(0) }}</div>
+                                <div class="text-2xl font-mono font-bold p-3">$ {{ calcTWD }}</div>
                             </div>
                         </div>
                     </div>
@@ -503,7 +503,7 @@
 
                 const currentDayEvents = computed(() => {
                     const targetDate = tripDays[currentDateIndex.value].date;
-                    return events.value.filter(e => e.date === targetDate);
+                    return events.value.filter(e => e.date === targetDate).sort((a,b) => a.time.localeCompare(b.time));
                 });
                 
                 const currentCity = computed(() => currentDateIndex.value < 2 ? 'Cebu' : currentDateIndex.value <= 5 ? 'Bohol' : 'Manila');
@@ -532,6 +532,14 @@
                 const handleImageError = (e) => {
                     e.target.src = 'https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?q=80&w=800'; // Fallback to Cebu
                 };
+                
+                // Computed for Exchange Rate
+                const calcTWD = computed(() => {
+                    const rate = 0.56;
+                    const val = parseFloat(calcPHP.value);
+                    if (isNaN(val)) return 0;
+                    return Math.round(val * rate);
+                });
 
                 // Map Logic (Fixed initialization)
                 let map = null;
@@ -646,6 +654,11 @@
                         }, 100);
                     }
                 });
+                
+                // Fix for icons inside Popups
+                watch(activePopup, () => {
+                    nextTick(() => lucide.createIcons());
+                });
 
                 return {
                     currentTab, activePopup, currentDateIndex, currentDayEvents, tripDays,
@@ -654,7 +667,7 @@
                     initMap, locateUser, fitBounds, openAddModal, editEvent: () => {},
                     getCategoryName, getCategoryColor, getCategoryBadgeStyle, getCategoryIcon,
                     currentWeather, currentCity, currentHeaderImage, firebaseReady: ref(true),
-                    handleImageError
+                    handleImageError, calcPHP, calcTWD
                 };
             }
         }).mount('#app');
