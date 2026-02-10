@@ -1,10 +1,10 @@
-<!-- Version: v35.0 (No Banner, Map Layer Fix, Pure Clean UI) -->
+<!-- Version: v36.0 (No Bottom Nav, Top-Right Map Button, Fullscreen UX) -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Remi's Family Trip</title>
+    <title>Remi's 2026 Trip</title>
     
     <!-- 核心庫 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -65,15 +65,6 @@
         body { background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         
-        /* 底部導航 */
-        .bottom-nav {
-            position: fixed; bottom: 0; left: 0; right: 0;
-            background: rgba(255,255,255,0.98); border-top: 1px solid #E2E8F0;
-            padding-bottom: env(safe-area-inset-bottom);
-            height: calc(60px + env(safe-area-inset-bottom));
-            z-index: 50; display: flex; justify-content: space-around; align-items: center;
-        }
-
         /* 頂部 Header (無圖版) */
         .simple-header {
             background: white;
@@ -87,20 +78,21 @@
         .date-btn-active { background-color: #0D9488; color: white; transform: scale(1.05); box-shadow: 0 4px 10px rgba(13,148,136,0.2); border: none; }
         .date-btn-inactive { background-color: #F1F5F9; color: #94A3B8; border: 1px solid transparent; }
 
-        /* 地圖圖層控制 (關鍵修改) */
+        /* 地圖圖層控制 */
         .map-layer {
-            position: fixed; top: 0; left: 0; right: 0; bottom: calc(60px + env(safe-area-inset-bottom));
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             z-index: 0; /* 預設在最底層 */
             opacity: 0; 
             transition: opacity 0.3s ease;
             pointer-events: none; /* 隱藏時不可點擊 */
+            background-color: #e5e7eb;
         }
         .map-layer.active {
-            z-index: 30; /* 顯示時浮上來 */
+            z-index: 60; /* 顯示時浮上來，蓋住一切 */
             opacity: 1;
             pointer-events: auto;
         }
-        #map-container { width: 100%; height: 100%; background: #e5e7eb; }
+        #map-container { width: 100%; height: 100%; }
         
         /* 列表容器 */
         .schedule-layer {
@@ -118,6 +110,16 @@
             display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
+        
+        /* FAB */
+        .fab-btn {
+            position: fixed; bottom: 30px; right: 24px;
+            width: 56px; height: 56px; background-color: #F59E0B; color: white;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4); z-index: 50;
+            transition: transform 0.2s;
+        }
+        .fab-btn:active { transform: scale(0.95); }
     </style>
 </head>
 <body class="h-screen flex flex-col font-sans text-slate-700 bg-slate-50">
@@ -134,6 +136,7 @@
                     </p>
                 </div>
                 <div class="flex gap-2">
+                    <button @click="switchTab('map')" class="w-9 h-9 rounded-full bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 active:scale-95 transition shadow-sm"><i data-lucide="map" class="w-4 h-4"></i></button>
                     <button @click="openPopup('info')" class="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 active:scale-95 transition"><i data-lucide="info" class="w-4 h-4"></i></button>
                     <button @click="openPopup('shopping')" class="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 active:scale-95 transition"><i data-lucide="shopping-bag" class="w-4 h-4"></i></button>
                     <button @click="openPopup('expenses')" class="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 active:scale-95 transition"><i data-lucide="coins" class="w-4 h-4"></i></button>
@@ -155,7 +158,7 @@
         <main class="flex-1 overflow-y-auto hide-scrollbar relative">
             
             <!-- 行程列表層 -->
-            <div v-show="currentTab === 'schedule'" class="schedule-layer px-4 pt-4 pb-32">
+            <div class="schedule-layer px-4 pt-4 pb-24">
                 
                 <!-- Weather -->
                 <div class="mb-5 bg-white border border-teal-50 rounded-2xl p-4 flex justify-between items-center shadow-soft">
@@ -193,78 +196,114 @@
                                 <div class="flex justify-between items-start">
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-2 mb-1">
-                                            <span class="text-[10px] font-bold px-2 py-0.5 rounded border" :class="getCategoryBadgeStyle(event.type)">{{ getCategoryName(event.type) }}</span>
-                                            <span v-if="event.transportTime" class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded flex items-center"><i data-lucide="footprints" class="w-3 h-3 mr-1"></i> {{ event.transportTime }}</span>
+                                            <span class="text-[10px] font-bold px-2 py-0.5 rounded border" :class="getCategoryBadgeStyle(event.type)">
+                                                {{ getCategoryName(event.type) }}
+                                            </span>
+                                            <span v-if="event.transportTime" class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded flex items-center">
+                                                <i data-lucide="footprints" class="w-3 h-3 mr-1"></i> {{ event.transportTime }}
+                                            </span>
                                         </div>
                                         <h3 class="text-base font-black text-slate-800 leading-tight truncate pr-1">{{ event.title }}</h3>
-                                        <p v-if="event.locationName" class="text-xs text-slate-400 mt-1 flex items-center gap-1 truncate"><i data-lucide="map-pin" class="w-3 h-3"></i> {{ event.locationName }}</p>
+                                        <p v-if="event.locationName" class="text-xs text-slate-400 mt-1 flex items-center gap-1 truncate">
+                                            <i data-lucide="map-pin" class="w-3 h-3"></i> {{ event.locationName }}
+                                        </p>
                                     </div>
+                                    
+                                    <!-- Action Buttons -->
                                     <div class="flex flex-col gap-2 ml-2 shrink-0">
-                                        <button class="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center hover:bg-blue-100 transition"><i data-lucide="navigation" class="w-4 h-4"></i></button>
-                                        <button @click.stop="deleteEvent(event.id)" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                        <button class="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center hover:bg-blue-100 transition shadow-sm">
+                                            <i data-lucide="navigation" class="w-4 h-4"></i>
+                                        </button>
+                                        <button @click.stop="deleteEvent(event.id)" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition shadow-sm">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                        </button>
                                     </div>
                                 </div>
-                                <div v-if="event.note || event.tag" class="mt-3 pt-3 border-t border-slate-50 flex flex-wrap gap-2">
-                                    <div v-if="event.note" class="bg-slate-50 rounded-lg px-2 py-1.5 text-xs text-slate-600 flex-1 leading-relaxed"><i data-lucide="file-text" class="w-3 h-3 text-amber-400 inline mr-1"></i> {{ event.note }}</div>
-                                    <span v-if="event.tag" class="text-[10px] bg-yellow-50 text-yellow-700 px-2 py-1 rounded-lg font-bold flex items-center self-start"><i data-lucide="star" class="w-3 h-3 mr-1 fill-yellow-700"></i> {{ event.tag }}</span>
+
+                                <!-- Note Section -->
+                                <div v-if="event.note || event.tag" class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
+                                    <div v-if="event.note" class="bg-slate-50 rounded-lg px-2 py-1.5 text-xs text-slate-600 flex-1 leading-relaxed flex items-start gap-1">
+                                        <i data-lucide="file-text" class="w-3 h-3 text-amber-400 mt-0.5 shrink-0"></i> 
+                                        <span>{{ event.note }}</span>
+                                    </div>
+                                    <span v-if="event.tag" class="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg font-bold flex items-center self-start whitespace-nowrap">
+                                        <i data-lucide="star" class="w-3 h-3 mr-1 fill-yellow-700"></i> {{ event.tag }}
+                                    </span>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Empty State -->
-                <div v-if="currentDayEvents.length === 0" class="text-center py-10 text-slate-400">
-                    <p class="text-sm">本日無行程</p>
-                    <button @click="resetToDefault" class="mt-4 text-xs text-teal-600 border border-teal-200 px-3 py-1 rounded-full">重置預設資料</button>
+                    
+                    <!-- Empty State -->
+                     <div v-if="currentDayEvents.length === 0" class="text-center py-10 text-slate-400">
+                        <p class="text-sm">本日無預設行程</p>
+                        <button @click="resetToDefault" class="mt-4 text-xs text-teal-600 border border-teal-200 px-3 py-1 rounded-full">重置預設資料</button>
+                    </div>
                 </div>
             </div>
 
             <!-- 地圖層 (Map Layer - Always Rendered but z-indexed) -->
             <div class="map-layer" :class="{'active': currentTab === 'map'}">
+                <button @click="switchTab('schedule')" class="absolute top-12 left-4 w-10 h-10 bg-white rounded-full shadow-lg z-[500] flex items-center justify-center text-slate-700 border border-slate-100">
+                    <i data-lucide="arrow-left" class="w-6 h-6"></i>
+                </button>
+                
                 <div id="map-container"></div>
-                <div class="absolute bottom-24 right-4 flex flex-col gap-2 z-[400]">
+                
+                <div class="absolute bottom-10 right-4 flex flex-col gap-2 z-[400]">
                      <button @click="forceInitMap" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:bg-slate-50"><i data-lucide="refresh-cw" class="w-6 h-6"></i></button>
                     <button @click="locateUser" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-teal-600 hover:bg-teal-50"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
+                </div>
+                
+                <div class="absolute top-12 right-4 bg-white/90 backdrop-blur rounded-xl px-4 py-2 shadow-lg z-[400] border border-white/50 text-center pointer-events-none">
+                     <p class="text-xs text-slate-500 font-bold">{{ tripDays[currentDateIndex].dateShort }} 行程</p>
                 </div>
             </div>
 
         </main>
 
         <!-- Floating Add Button -->
-        <button v-if="currentTab==='schedule'" @click="openAddModal" class="fixed bottom-24 right-5 w-14 h-14 bg-secondary rounded-full shadow-lg text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-50">
+        <button v-if="currentTab==='schedule'" @click="openAddModal" class="fab-btn">
             <i data-lucide="plus" class="w-8 h-8"></i>
         </button>
 
-        <!-- Bottom Navigation -->
-        <nav class="bottom-nav shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-            <button @click="switchTab('schedule')" class="flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform" :class="currentTab === 'schedule' ? 'text-teal-600' : 'text-slate-400'">
-                <i data-lucide="calendar-days" class="w-6 h-6 mb-1" :class="{'fill-teal-100': currentTab === 'schedule'}"></i>
-                <span class="text-[10px] font-bold">行程</span>
-            </button>
-            <button @click="switchTab('map')" class="flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform" :class="currentTab === 'map' ? 'text-teal-600' : 'text-slate-400'">
-                <i data-lucide="map" class="w-6 h-6 mb-1" :class="{'fill-teal-100': currentTab === 'map'}"></i>
-                <span class="text-[10px] font-bold">地圖</span>
-            </button>
-        </nav>
-
-        <!-- === Modals & Popups === -->
-
+        <!-- === POPUPS === -->
+        
         <!-- Info Popup -->
         <transition name="popup">
             <div v-if="activePopup === 'info'" class="fixed inset-0 z-[60] bg-slate-100 flex flex-col h-full w-full">
                 <div class="bg-white px-5 pt-12 pb-3 flex justify-between items-center shadow-sm shrink-0">
                     <h2 class="text-xl font-black text-slate-800">旅遊資訊</h2>
-                    <button @click="closePopup" class="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    <button @click="closePopup" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"><i data-lucide="x" class="w-6 h-6"></i></button>
                 </div>
-                <div class="p-5 space-y-4 overflow-y-auto">
+                <div class="p-5 space-y-5 overflow-y-auto">
                     <!-- Rate -->
                     <div class="bg-teal-600 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
                         <h3 class="font-bold mb-4 flex items-center"><i data-lucide="coins" class="w-5 h-5 mr-2"></i> 匯率換算</h3>
                         <div class="flex items-center gap-4 relative z-10">
-                            <div class="flex-1"><label class="text-[10px] opacity-70 block mb-1">PHP</label><input type="number" v-model="calcPHP" class="w-full bg-white/20 border-0 rounded-xl text-2xl font-mono font-bold p-3 text-white outline-none" placeholder="0"></div>
+                            <div class="flex-1">
+                                <label class="text-[10px] opacity-70 block mb-1">PHP</label>
+                                <input type="number" v-model="calcPHP" class="w-full bg-white/20 border-0 rounded-xl text-2xl font-mono font-bold p-3 text-white outline-none" placeholder="0">
+                            </div>
                             <i data-lucide="arrow-right" class="w-6 h-6 text-white/50 mt-6"></i>
-                            <div class="flex-1"><label class="text-[10px] opacity-70 block mb-1">TWD</label><div class="text-2xl font-mono font-bold p-3">$ {{ calcTWD }}</div></div>
+                            <div class="flex-1">
+                                <label class="text-[10px] opacity-70 block mb-1">TWD</label>
+                                <div class="text-2xl font-mono font-bold p-3">$ {{ calcTWD }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Flights -->
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                        <h3 class="font-bold text-slate-800 mb-3 flex items-center"><i data-lucide="plane" class="w-5 h-5 text-blue-500 mr-2"></i> 航班</h3>
+                         <div class="space-y-3">
+                            <div class="flex justify-between items-center bg-blue-50 p-3 rounded-xl border border-blue-100">
+                                <div><div class="text-xs text-blue-600 font-bold">2/11 去程</div><div class="font-black text-lg">TPE → CEB</div></div>
+                                <div class="text-right"><div class="text-xs text-slate-500">03:15</div><div class="font-mono font-bold text-slate-700">5J311</div></div>
+                            </div>
+                            <div class="flex justify-between items-center bg-orange-50 p-3 rounded-xl border border-orange-100">
+                                <div><div class="text-xs text-orange-600 font-bold">2/18 回程</div><div class="font-black text-lg">MNL → TPE</div></div>
+                                <div class="text-right"><div class="text-xs text-slate-500">23:35</div><div class="font-mono font-bold text-slate-700">5J310</div></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -276,7 +315,7 @@
             <div v-if="activePopup === 'shopping'" class="fixed inset-0 z-[60] bg-slate-50 flex flex-col h-full w-full">
                 <div class="bg-white px-5 pt-12 pb-3 flex justify-between items-center shadow-sm shrink-0">
                     <h2 class="text-xl font-black text-slate-800">購物清單</h2>
-                    <button @click="closePopup" class="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    <button @click="closePopup" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"><i data-lucide="x" class="w-6 h-6"></i></button>
                 </div>
                 <div class="flex-1 overflow-y-auto p-4 bg-slate-50">
                     <div class="grid grid-cols-2 gap-3 mb-20">
@@ -284,6 +323,10 @@
                              <button @click="deleteItem('shopping', idx)" class="absolute top-2 right-2 w-6 h-6 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500"><i data-lucide="x" class="w-3 h-3"></i></button>
                              <div class="font-bold text-slate-700 text-sm truncate mt-2">{{ item.name }}</div>
                         </div>
+                    </div>
+                    <div v-if="shoppingList.length === 0" class="text-center py-20 text-slate-300">
+                        <i data-lucide="shopping-bag" class="w-16 h-16 mx-auto mb-2 stroke-1"></i>
+                        <p>尚無清單</p>
                     </div>
                     <!-- Add Box -->
                     <div class="fixed bottom-8 left-4 right-4 bg-white p-4 rounded-2xl shadow-xl border border-slate-100 z-50">
@@ -301,7 +344,7 @@
             <div v-if="activePopup === 'expenses'" class="fixed inset-0 z-[60] bg-slate-50 flex flex-col h-full w-full">
                 <div class="bg-white px-5 pt-12 pb-3 flex justify-between items-center shadow-sm shrink-0">
                     <h2 class="text-xl font-black text-slate-800">旅費記錄</h2>
-                    <button @click="closePopup" class="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    <button @click="closePopup" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"><i data-lucide="x" class="w-6 h-6"></i></button>
                 </div>
                 <div class="flex-1 overflow-y-auto p-4 bg-slate-50">
                     <div class="bg-slate-800 rounded-3xl p-6 text-white shadow-xl shadow-slate-300 mb-6 relative overflow-hidden">
@@ -338,12 +381,24 @@
                 <h3 class="font-bold text-lg mb-4 text-slate-800">新增行程</h3>
                 <div class="space-y-3">
                     <div class="grid grid-cols-2 gap-3">
-                        <div><label class="block text-xs font-bold text-slate-400 mb-1">時間</label><input v-model="formEvent.time" type="time" class="input text-center font-bold"></div>
-                        <div><label class="block text-xs font-bold text-slate-400 mb-1">分類</label><select v-model="formEvent.type" class="input bg-white"><option value="spot">📍 景點</option><option value="food">🍴 美食</option><option value="hotel">🏨 住宿</option><option value="transport">🚗 交通</option><option value="note">⚠️ 備註</option></select></div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 mb-1">時間</label>
+                            <input v-model="formEvent.time" type="time" class="input text-center font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 mb-1">分類</label>
+                            <select v-model="formEvent.type" class="input bg-white">
+                                <option value="spot">📍 景點</option>
+                                <option value="food">🍴 美食</option>
+                                <option value="hotel">🏨 住宿</option>
+                                <option value="transport">🚗 交通</option>
+                                <option value="note">⚠️ 備註</option>
+                            </select>
+                        </div>
                     </div>
                     <input v-model="formEvent.title" class="input" placeholder="名稱">
                     <input v-model="formEvent.locationName" placeholder="地點名稱" class="input">
-                    <input v-model="formEvent.address" placeholder="地址 (Google 導航)" class="input">
+                    <input v-model="formEvent.address" placeholder="地址 (Google 導航用)" class="input">
                     <div class="flex gap-2 mt-4">
                         <button @click="showEventModal=false" class="flex-1 bg-slate-100 py-3 rounded-xl font-bold text-slate-500">取消</button>
                         <button @click="saveEvent" class="flex-1 bg-teal-600 text-white py-3 rounded-xl font-bold">儲存</button>
@@ -365,8 +420,6 @@
                 const currentDateIndex = ref(0);
                 const calcPHP = ref('');
                 const showEventModal = ref(false);
-                
-                // Form Data
                 const formEvent = ref({ time: '12:00', title: '', type: 'food', address: '' });
                 const formShopping = ref({ name: '' });
                 const formExpense = ref({ name: '', amount: null, date: new Date().toISOString().split('T')[0] });
@@ -382,7 +435,6 @@
                     { date: '2026-02-18', dayShort: '週三', dayNum: '18', highlight: 'BGC & 返台', dateShort: '2/18', location: '馬尼拉' }
                 ];
 
-                // *** 內建資料 ***
                 const initialItinerary = [
                     { id: '1-0', date: '2026-02-11', time: '03:15', title: '飛往馬尼拉 5J311', locationName: 'TPE T1 -> MNL T3', type: 'transport', tag: '轉機', lat: 14.512, lng: 121.015, note: '轉機需領行李，重掛。' },
                     { id: '1-1', date: '2026-02-11', time: '05:45', title: '抵達馬尼拉 T3', locationName: 'MNL T3', type: 'note', tag: '領行李', lat: 14.512, lng: 121.015 },
@@ -406,7 +458,7 @@
                     { id: '4-5', date: '2026-02-14', time: '18:00', title: '晚餐 Mist', locationName: '森林系餐廳', type: 'food', tag: '推薦', lat: 9.554, lng: 123.766 },
                     { id: '5-0', date: '2026-02-15', time: '06:00', title: '跳島一日遊', locationName: 'Balicasag', type: 'spot', tag: '包船', lat: 9.518, lng: 123.680 },
                     { id: '5-2', date: '2026-02-15', time: '11:00', title: 'Virgin Island', locationName: '處女島', type: 'spot', lat: 9.556, lng: 123.730 },
-                    { id: '5-4', date: '2026-02-15', time: '14:30', title: 'Check in Villa', locationName: 'Villa Kalachuchi (Danao)', type: 'hotel', note: '無早餐', lat: 9.556, lng: 123.760 },
+                    { id: '5-4', date: '2026-02-15', time: '14:30', title: 'Check in Villa', locationName: 'Villa Kalachuchi (Danao)', type: 'hotel', note: '無早餐有廚房', lat: 9.556, lng: 123.760 },
                     { id: '5-5', date: '2026-02-15', time: '18:00', title: '晚餐 Luna Rossa', locationName: '素食義大利菜', type: 'food', tag: '推薦', lat: 9.553, lng: 123.762 },
                     { id: '6-0', date: '2026-02-16', time: '09:00', title: '包車一日遊', locationName: 'Bohol 內陸', type: 'transport', tag: '6500p', lat: 9.696, lng: 124.120 },
                     { id: '6-2', date: '2026-02-16', time: '10:00', title: '眼鏡猴 & 人造林', locationName: 'Tarsier Area', type: 'spot', lat: 9.696, lng: 124.120 },
