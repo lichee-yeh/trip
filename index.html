@@ -3,399 +3,335 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Remi's 菲律賓大冒險</title>
+    <title>Remi's Family Trip ☁️</title>
+    
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Leaflet Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Firebase 設定 (已整合您的鑰匙與資料庫功能) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        
+        const firebaseConfig = {
+            apiKey: "AIzaSyA1JHrkPbANS-g7X8OudpD0w819ZXA8-7A",
+            authDomain: "family-trip-2026-1c43d.firebaseapp.com",
+            projectId: "family-trip-2026-1c43d",
+            storageBucket: "family-trip-2026-1c43d.firebasestorage.app",
+            messagingSenderId: "157512457202",
+            appId: "1:157512457202:web:b211df6298c0057e62e96b",
+            measurementId: "G-GMJH1L7WSS"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        window.db = db;
+        window.firestoreOps = { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy };
+        window.dispatchEvent(new Event('firebase-ready'));
+    </script>
+
+    <!-- 字體與樣式 -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { teal: { 50: '#f0fdfa', 100: '#ccfbf1', 400: '#2dd4bf', 500: '#14b8a6', 600: '#0d9488', 900: '#134e4a' } },
+                    fontFamily: { sans: ['Noto Sans TC', 'sans-serif'] },
+                    boxShadow: { 'float': '0 10px 30px -10px rgba(20, 184, 166, 0.3)' }
+                }
+            }
+        }
+    </script>
     <style>
-        body { 
-            font-family: 'Noto Sans TC', sans-serif; 
-            background-color: #A29BFE; 
-            background-image: radial-gradient(#6C5CE7 20%, transparent 20%), radial-gradient(#6C5CE7 20%, transparent 20%);
-            background-position: 0 0, 10px 10px;
-            background-size: 20px 20px;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        
-        .game-boy-container {
-            width: 100%;
-            max-width: 420px;
-            height: 95vh;
-            max-height: 850px;
-            background-color: #FDCB6E;
-            border: 4px solid #2D3436;
-            border-radius: 30px;
-            box-shadow: 10px 10px 0px 0px rgba(0,0,0,0.4);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .game-header {
-            background-color: #FF7675;
-            padding: 15px;
-            border-bottom: 4px solid #2D3436;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 4px 0 rgba(0,0,0,0.1);
-            z-index: 10;
-        }
-
-        .card-stage {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-            position: relative;
-            background-color: #fff;
-            background-image: linear-gradient(#f0f0f0 1px, transparent 1px), linear-gradient(90deg, #f0f0f0 1px, transparent 1px);
-            background-size: 20px 20px;
-        }
-
-        .pop-card {
-            background: white;
-            border: 3px solid #2D3436;
-            border-radius: 20px;
-            box-shadow: 6px 6px 0px #2D3436;
-            margin-bottom: 20px;
-            overflow: hidden;
-            transition: transform 0.2s;
-        }
-        
-        .pop-card-image {
-            height: 140px;
-            background-color: #dfe6e9;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .pop-card-image img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .pop-card-title {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            background: rgba(45, 52, 54, 0.9);
-            color: #FAB1A0;
-            padding: 5px 10px;
-            font-family: 'Fredoka', sans-serif;
-            font-weight: 700;
-            font-size: 1.2rem;
-            text-transform: uppercase;
-        }
-
-        .option-btn {
-            background: white;
-            border: 2px solid #2D3436;
-            border-radius: 15px;
-            padding: 12px;
-            margin-bottom: 12px;
-            box-shadow: 4px 4px 0px #2D3436;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            transition: all 0.1s;
-            cursor: pointer;
-        }
-        
-        .option-btn:active {
-            transform: translate(2px, 2px);
-            box-shadow: 2px 2px 0px #2D3436;
-        }
-
-        .icon-box {
-            width: 45px;
-            height: 45px;
-            border: 2px solid #2D3436;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.4rem;
-            flex-shrink: 0;
-        }
-
-        .game-controls {
-            background-color: #2D3436;
-            padding: 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .nav-btn {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            border: 2px solid #fff;
-            background-color: #6C5CE7;
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
-            box-shadow: 0 4px 0 #4834d4;
-            cursor: pointer;
-        }
-        
-        .nav-btn:active {
-            transform: translateY(4px);
-            box-shadow: 0 0 0 #4834d4;
-        }
-
-        .date-display {
-            color: #FDCB6E;
-            font-family: 'Fredoka', sans-serif;
-            text-align: center;
-        }
-        
-        .date-main { font-size: 1.2rem; font-weight: bold; }
-        .date-sub { font-size: 0.8rem; opacity: 0.8; }
-
-        .secret-btn {
-            background: #e17055; 
-            color: white;
-            font-weight: bold;
-            text-align: center;
-            padding: 10px;
-            border-radius: 12px;
-            border: 2px dashed rgba(255,255,255,0.5);
-            margin-top: 15px;
-            cursor: pointer;
-            font-size: 0.9rem;
-        }
-
-        ::-webkit-scrollbar { display: none; }
+        body { background-color: #f1f5f9; -webkit-tap-highlight-color: transparent; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        #map-container { height: 100%; width: 100%; z-index: 0; }
+        .custom-div-icon { background: #14b8a6; color: white; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
     </style>
 </head>
-<body>
+<body class="h-screen flex flex-col overflow-hidden text-slate-600 font-sans">
 
-    <div class="game-boy-container">
-        <div class="game-header">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-white border-2 border-black flex items-center justify-center overflow-hidden">
-                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Remi&backgroundColor=ffdfbf" alt="Remi">
-                </div>
+    <div id="app" class="flex flex-col h-full max-w-md mx-auto bg-slate-50 relative shadow-2xl">
+
+        <!-- Loading Screen -->
+        <div v-if="!firebaseReady" class="absolute inset-0 z-[9999] bg-white flex flex-col items-center justify-center">
+            <div class="w-12 h-12 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mb-4"></div>
+            <p class="text-teal-600 font-bold animate-pulse">正在同步雲端行程...</p>
+        </div>
+
+        <!-- Header -->
+        <header class="px-5 pt-12 pb-3 bg-white/90 backdrop-blur-md z-30 sticky top-0 border-b border-slate-100">
+            <div class="flex justify-between items-center mb-4">
                 <div>
-                    <div class="font-black text-sm uppercase text-white tracking-widest">PLAYER</div>
-                    <div class="font-bold text-black text-xs bg-[#FDCB6E] px-2 rounded-full inline-block">REMI (4y)</div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-xl font-bold text-teal-900 tracking-tight">Remi Family Trip</h1>
+                        <span class="flex h-2 w-2 relative">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-0.5">4大1小1老 • 宿霧薄荷島</p>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-lg border border-teal-100 shadow-sm">
+                    👧🏻
                 </div>
             </div>
-            <div class="flex gap-1">
-                <div class="w-3 h-3 rounded-full bg-[#00b894] border border-black"></div>
-                <div class="w-3 h-3 rounded-full bg-[#e17055] border border-black"></div>
+
+            <!-- 日期滑動列 -->
+            <div v-if="currentTab !== 'money'" class="flex space-x-3 overflow-x-auto hide-scrollbar pb-1">
+                <button v-for="(day, index) in tripDays" :key="index" @click="changeDate(index)"
+                    class="flex-shrink-0 flex flex-col items-center justify-center w-14 h-16 rounded-2xl transition-all duration-300 border relative overflow-hidden snap-start"
+                    :class="currentDateIndex === index ? 'bg-teal-500 text-white shadow-float border-teal-500 transform scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-teal-200'">
+                    <span class="text-[10px] opacity-80 uppercase font-medium">{{ day.dayName }}</span>
+                    <span class="text-lg font-bold">{{ day.dayNum }}</span>
+                    <div v-if="hasEvent(day.date)" class="absolute bottom-1.5 w-1 h-1 rounded-full transition-colors" :class="currentDateIndex === index ? 'bg-white' : 'bg-teal-400'"></div>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-1 overflow-y-auto relative bg-slate-50 hide-scrollbar scroll-smooth">
+            
+            <!-- Tab 1: 行程表 -->
+            <transition name="fade">
+                <div v-if="currentTab === 'schedule'" class="px-4 py-6 space-y-5 pb-24">
+                    
+                    <!-- Empty State -->
+                    <div v-if="currentDayEvents.length === 0" class="flex flex-col items-center justify-center py-20 text-slate-300 opacity-60">
+                        <i data-lucide="coffee" class="w-12 h-12 mb-3 stroke-1"></i>
+                        <p class="text-sm font-medium">本日尚無行程</p>
+                        <button @click="showEventModal = true" class="mt-4 text-teal-600 text-xs font-bold border border-teal-200 px-4 py-2 rounded-full hover:bg-teal-50">新增第一筆</button>
+                    </div>
+
+                    <!-- Event Cards -->
+                    <div v-for="event in currentDayEvents" :key="event.id" class="group bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex gap-4 relative overflow-hidden transition-all hover:shadow-md">
+                        
+                        <!-- Side Decoration -->
+                        <div class="absolute left-0 top-0 bottom-0 w-1 transition-colors" 
+                             :class="event.type === 'food' ? 'bg-orange-400' : event.type === 'transport' ? 'bg-blue-400' : 'bg-teal-400'"></div>
+                        
+                        <!-- Time Column -->
+                        <div class="flex flex-col items-center min-w-[3.5rem] pt-0.5 border-r border-slate-50 pr-3">
+                            <span class="text-lg font-bold text-slate-700 font-sans tracking-tight">{{ event.time }}</span>
+                            <div v-if="event.weather" class="mt-2 text-xs flex flex-col items-center text-amber-500 bg-amber-50 px-1 py-0.5 rounded">
+                                <i :data-lucide="getWeatherIcon(event.weather.code)" class="w-3 h-3 mb-0.5"></i>
+                                <span class="scale-90 font-bold">{{ event.weather.temp }}°</span>
+                            </div>
+                        </div>
+
+                        <!-- Content Column -->
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-start">
+                                <h3 class="font-bold text-slate-800 text-base leading-tight truncate pr-2">{{ event.title }}</h3>
+                                <!-- Actions -->
+                                <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button @click="openMapForEvent(event)" class="text-slate-300 hover:text-teal-500"><i data-lucide="map" class="w-4 h-4"></i></button>
+                                    <button @click="deleteEvent(event.id)" class="text-slate-300 hover:text-red-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                </div>
+                            </div>
+                            
+                            <p class="text-xs text-slate-400 mt-1 flex items-center">
+                                <i data-lucide="map-pin" class="w-3 h-3 mr-1"></i> {{ event.locationName }}
+                            </p>
+                            
+                            <!-- Tags -->
+                            <div class="mt-3 flex gap-2">
+                                <span class="px-2 py-0.5 rounded-md text-[10px] font-bold border"
+                                    :class="event.type === 'food' ? 'bg-orange-50 text-orange-600 border-orange-100' : 
+                                            event.type === 'transport' ? 'bg-blue-50 text-blue-600 border-blue-100' : 
+                                            'bg-teal-50 text-teal-600 border-teal-100'">
+                                    {{ getTypeName(event.type) }}
+                                </span>
+                                <span v-if="event.tag" class="px-2 py-0.5 bg-slate-50 text-slate-500 rounded-md text-[10px] border border-slate-100 flex items-center">
+                                    <i data-lucide="star" class="w-2 h-2 mr-1 text-orange-400 fill-orange-400"></i> {{ event.tag }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+
+            <!-- Tab 2: 分帳 -->
+            <transition name="fade">
+                <div v-if="currentTab === 'money'" class="px-4 py-6 space-y-6 pb-24">
+                    <!-- Total Card -->
+                    <div class="bg-gradient-to-br from-teal-500 to-emerald-600 rounded-3xl p-6 text-white shadow-float relative overflow-hidden">
+                        <div class="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+                        <div class="flex justify-between items-end mb-2">
+                            <span class="text-teal-50 text-xs font-medium uppercase tracking-wider">Total Expenses</span>
+                            <button @click="showRateModal=true" class="text-[10px] bg-white/20 px-2 py-1 rounded hover:bg-white/30 transition">匯率 {{exchangeRate}}</button>
+                        </div>
+                        <div class="text-4xl font-bold tracking-tight">
+                            <span class="text-xl opacity-80 mr-1">NT$</span>{{ formatNumber(totalExpenseTwd) }}
+                        </div>
+                        <div class="pt-5 mt-2 border-t border-white/10 grid grid-cols-2 gap-3">
+                            <div v-for="(bal, name) in balances" :key="name" class="flex justify-between items-center bg-black/10 rounded-lg px-3 py-2">
+                                <span class="text-xs font-bold opacity-90">{{ name }}</span>
+                                <span class="text-xs font-bold" :class="bal >= 0 ? 'text-teal-100' : 'text-rose-200'">{{ bal >= 0 ? '+' : '' }}{{ formatNumber(bal) }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- List -->
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center px-1">
+                            <h3 class="font-bold text-slate-700 text-sm">消費明細</h3>
+                            <button @click="showExpenseModal = true" class="flex items-center text-xs bg-white border border-slate-200 px-3 py-1.5 rounded-full text-slate-600 shadow-sm hover:bg-slate-50"><i data-lucide="plus" class="w-3 h-3 mr-1"></i> 記一筆</button>
+                        </div>
+                        <div v-for="ex in expenses" :key="ex.id" class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-lg border border-slate-100">{{ getAvatar(ex.payer) }}</div>
+                                <div>
+                                    <div class="font-bold text-slate-700 text-sm">{{ ex.item }}</div>
+                                    <div class="text-[10px] text-slate-400 mt-0.5 font-medium">{{ ex.payer }} • {{ ex.currency }} {{ formatNumber(ex.amount) }}</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="font-bold text-slate-700 text-sm">NT$ {{ formatNumber(Math.round(ex.amount * (ex.currency === 'PHP' ? exchangeRate : 1))) }}</div>
+                                <button @click="deleteExpense(ex.id)" class="text-[10px] text-red-300 hover:text-red-500 mt-1">刪除</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+
+            <!-- Tab 3: 地圖 -->
+            <div v-show="currentTab === 'map'" class="h-full w-full relative">
+                <div id="map-container"></div>
+                <div class="absolute bottom-24 right-4 flex flex-col gap-2 z-[400]">
+                    <button @click="locateUser" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-teal-600 hover:bg-teal-50 border border-slate-100"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
+                    <button @click="fitBounds" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:bg-slate-50 border border-slate-100"><i data-lucide="maximize" class="w-6 h-6"></i></button>
+                </div>
+                <div class="absolute top-4 left-4 right-4 bg-white/90 backdrop-blur rounded-xl p-3 shadow-lg z-[400] border border-white/50 text-center">
+                     <p class="text-xs text-slate-500"><span class="font-bold text-teal-600">{{ tripDays[currentDateIndex].dateShort }}</span> 行程地圖</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Floating Add Button -->
+        <button v-if="currentTab === 'schedule'" @click="showEventModal = true" class="absolute bottom-24 right-5 w-14 h-14 bg-teal-600 rounded-full shadow-float text-white flex items-center justify-center hover:bg-teal-700 hover:scale-105 transition-all z-40 active:scale-95">
+            <i data-lucide="plus" class="w-7 h-7"></i>
+        </button>
+
+        <!-- Bottom Navigation -->
+        <nav class="bg-white border-t border-slate-100 pb-8 pt-3 px-6 flex justify-between items-center z-50">
+            <button v-for="tab in tabs" :key="tab.id" @click="switchTab(tab.id)" class="flex flex-col items-center gap-1 w-16 transition-all duration-300 relative" :class="currentTab === tab.id ? 'text-teal-600 -translate-y-1' : 'text-slate-300 hover:text-slate-400'">
+                <div class="relative">
+                    <i :data-lucide="tab.icon" class="w-6 h-6" :class="currentTab === tab.id ? 'fill-teal-50' : ''"></i>
+                    <div v-if="currentTab === tab.id" class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 bg-teal-600 rounded-full"></div>
+                </div>
+                <span class="text-[10px] font-medium">{{ tab.label }}</span>
+            </button>
+        </nav>
+
+        <!-- Modals -->
+        
+        <!-- Add Event Modal -->
+        <div v-if="showEventModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div class="bg-white w-full max-w-md p-6 rounded-t-3xl sm:rounded-3xl animate-slide-up shadow-2xl">
+                <div class="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-6"></div>
+                <h3 class="text-lg font-bold text-teal-900 mb-4">新增行程</h3>
+                <div class="space-y-3">
+                    <div class="grid grid-cols-3 gap-3">
+                        <input v-model="formEvent.time" type="time" class="col-span-1 input-field text-center font-bold">
+                        <select v-model="formEvent.type" class="col-span-2 input-field bg-white">
+                            <option value="spot">📸 景點</option>
+                            <option value="food">🍽️ 餐廳</option>
+                            <option value="transport">🚗 交通</option>
+                            <option value="hotel">🏨 住宿</option>
+                        </select>
+                    </div>
+                    <input v-model="formEvent.title" placeholder="標題 (例: Ubeco 午餐)" class="input-field">
+                    <input v-model="formEvent.locationName" placeholder="地點名稱" class="input-field">
+                    <input v-model="formEvent.tag" placeholder="標籤 (例: 4.8⭐)" class="input-field">
+                    
+                    <div class="pt-2">
+                        <p class="text-xs text-slate-400 mb-2">座標 (用於地圖定位，可選填)</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <input v-model.number="formEvent.lat" placeholder="緯度 Lat" class="input-field text-xs">
+                            <input v-model.number="formEvent.lng" placeholder="經度 Lng" class="input-field text-xs">
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button @click="showEventModal = false" class="flex-1 py-3 text-slate-400 font-bold text-sm rounded-xl hover:bg-slate-50 transition">取消</button>
+                    <button @click="saveEvent" class="flex-1 bg-teal-600 text-white rounded-xl py-3 font-bold shadow-lg shadow-teal-200 active:scale-95 transition">儲存</button>
+                </div>
             </div>
         </div>
 
-        <div class="h-2 w-full bg-[#2D3436]">
-            <div id="progressBar" class="h-full bg-[#00CEC9] transition-all duration-300" style="width: 12.5%"></div>
-        </div>
-
-        <div id="gameContent" class="card-stage">
-        </div>
-
-        <div class="game-controls">
-            <button onclick="changeDay(-1)" class="nav-btn bg-[#d63031] shadow-[#c0392b]"><i data-lucide="arrow-left"></i></button>
-            <div class="date-display">
-                <div id="dayLabel" class="date-sub">LEVEL 1</div>
-                <div id="dateLabel" class="date-main">2/11</div>
+        <!-- Add Expense Modal -->
+        <div v-if="showExpenseModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div class="bg-white w-full max-w-md p-6 rounded-t-3xl sm:rounded-3xl animate-slide-up shadow-2xl">
+                <div class="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-6"></div>
+                <h3 class="text-lg font-bold text-teal-900 mb-4">記一筆</h3>
+                <div class="flex bg-slate-100 p-1 rounded-xl mb-4">
+                    <button @click="formExpense.currency = 'TWD'" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all" :class="formExpense.currency === 'TWD' ? 'bg-white shadow-sm text-teal-600' : 'text-slate-400'">TWD (台幣)</button>
+                    <button @click="formExpense.currency = 'PHP'" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all" :class="formExpense.currency === 'PHP' ? 'bg-white shadow-sm text-teal-600' : 'text-slate-400'">PHP (披索)</button>
+                </div>
+                <div class="space-y-3">
+                    <input v-model="formExpense.item" placeholder="項目 (例: Grab)" class="input-field">
+                    <div class="relative">
+                        <span class="absolute left-4 top-3.5 text-slate-400 font-bold text-sm">{{ formExpense.currency === 'TWD' ? '$' : '₱' }}</span>
+                        <input v-model.number="formExpense.amount" type="number" placeholder="金額" class="input-field pl-8 font-bold text-lg text-slate-700">
+                    </div>
+                    <div v-if="formExpense.currency === 'PHP'" class="text-xs text-right text-teal-500 font-medium px-1">≈ NT$ {{ Math.round(formExpense.amount * exchangeRate) }}</div>
+                    
+                    <div class="text-xs text-slate-400 mb-2 ml-1 mt-4">誰先墊的錢？</div>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button v-for="m in members" :key="m" @click="formExpense.payer = m" class="py-2 rounded-xl text-xs font-bold border transition-all" :class="formExpense.payer === m ? 'bg-teal-50 border-teal-400 text-teal-700' : 'bg-white border-slate-100 text-slate-400'">{{ m }}</button>
+                    </div>
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button @click="showExpenseModal = false" class="flex-1 py-3 text-slate-400 font-bold text-sm rounded-xl hover:bg-slate-50 transition">取消</button>
+                    <button @click="saveExpense" class="flex-1 bg-teal-600 text-white rounded-xl py-3 font-bold shadow-lg shadow-teal-200 active:scale-95 transition">儲存</button>
+                </div>
             </div>
-            <button onclick="changeDay(1)" class="nav-btn bg-[#00b894] shadow-[#00947e]"><i data-lucide="arrow-right"></i></button>
         </div>
+        
+        <!-- Rate Modal -->
+        <div v-if="showRateModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[1000] flex items-center justify-center p-6">
+            <div class="bg-white w-full max-w-xs p-6 rounded-3xl shadow-2xl">
+                <h3 class="text-center font-bold text-slate-700 mb-4">設定 PHP 匯率</h3>
+                <input v-model.number="exchangeRate" type="number" step="0.01" class="input-field text-center text-3xl font-bold text-teal-600 mb-6 py-4">
+                <div class="flex gap-2">
+                     <button @click="showRateModal = false" class="flex-1 py-3 text-slate-400 font-bold text-sm">取消</button>
+                     <button @click="saveRate" class="flex-1 bg-slate-800 text-white rounded-xl py-3 font-bold">更新</button>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script>
-        lucide.createIcons();
+        const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
 
-        const tripData = [
-            {
-                date: "2/11 (二)",
-                level: "LEVEL 1",
-                title: "宿霧登陸戰",
-                img: "https://images.unsplash.com/photo-1594998468763-71408848a60c?w=600&q=80",
-                color: "bg-[#74b9ff]",
-                tasks: [
-                    { type: "food", icon: "🥞", title: "午餐吃什麼？", desc: "Abaca Baking (Ayala Center)", tag: "4.4⭐" },
-                    { type: "spot", icon: "📸", title: "晚餐大冒險", desc: "The Pyramid 金字塔餐廳", tag: "IT Park" },
-                    { type: "hotel", icon: "🏨", title: "住宿基地", desc: "Parklane International Hotel", tag: "Check-in" }
-                ],
-                secret: "💡 提示：記得在 Ayala 商場換錢，匯率最好！"
-            },
-            {
-                date: "2/12 (三)",
-                level: "LEVEL 2",
-                title: "魚魚與古蹟",
-                img: "https://images.unsplash.com/photo-1575825700757-074472f88d2d?w=600&q=80",
-                color: "bg-[#a29bfe]",
-                tasks: [
-                    { type: "spot", icon: "🐠", title: "海底總動員", desc: "Cebu Ocean Park", tag: "09:00" },
-                    { type: "food", icon: "🍽️", title: "午餐在水裡吃", desc: "Aqua Dining 海底隧道餐廳", tag: "需預約" },
-                    { type: "food", icon: "🥩", title: "晚餐吃牛排", desc: "Texas Roadhouse (SM Seaside)", tag: "4.8⭐" }
-                ],
-                secret: "💡 密技：Texas 的麵包可以無限續加，小孩超愛！"
-            },
-            {
-                date: "2/13 (四)",
-                level: "LEVEL 3",
-                title: "前進薄荷島",
-                img: "https://images.unsplash.com/photo-1621255531388-7201c7d24266?w=600&q=80",
-                color: "bg-[#ff7675]",
-                tasks: [
-                    { type: "transport", icon: "🚢", title: "搭船任務", desc: "Ocean Jet (11:40出發)", tag: "2hr" },
-                    { type: "hotel", icon: "🏨", title: "入住度假村", desc: "Best Western Plus (Alona)", tag: "熱鬧區" },
-                    { type: "food", icon: "🍕", title: "晚餐義式風", desc: "Giuseppe Pizzeria", tag: "非中式" }
-                ],
-                secret: "💡 提醒：碼頭會有很多人想幫忙提行李要小費，請堅定拒絕！"
-            },
-            {
-                date: "2/14 (五)",
-                level: "LEVEL 4",
-                title: "沙丁魚 & 網美",
-                img: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=600&q=80",
-                color: "bg-[#55efc4]",
-                tasks: [
-                    { type: "spot", icon: "🧜‍♀️", title: "沙丁魚風暴", desc: "Napaling Reef 水下攝影", tag: "09:00" },
-                    { type: "food", icon: "🥥", title: "必吃網美店", desc: "Ubeco 韓系咖哩 (就在旁邊)", tag: "🏆 首選" },
-                    { type: "spot", icon: "🏎️", title: "陸上探險", desc: "Zipline 空中飛人 / ATV", tag: "下午" },
-                    { type: "food", icon: "🌿", title: "森林系晚餐", desc: "Mist (有溜滑梯)", tag: "需訂位" }
-                ],
-                secret: "💡 重要：Ubeco 和 Mist 人很多，請飯店櫃檯務必幫忙訂位！"
-            },
-            {
-                date: "2/15 (六)",
-                level: "LEVEL 5",
-                title: "海豚 & 搬家",
-                img: "https://images.unsplash.com/photo-1570535265582-892257253573?w=600&q=80",
-                color: "bg-[#fd79a8]",
-                tasks: [
-                    { type: "spot", icon: "🐬", title: "早起追海豚", desc: "06:00 出海 + 大斷層", tag: "早起" },
-                    { type: "hotel", icon: "🏨", title: "搬新家", desc: "Villa Kalachuchi (Danao)", tag: "安靜區" },
-                    { type: "food", icon: "🍝", title: "晚餐吃素", desc: "Luna Rossa 義大利餐廳", tag: "清爽" }
-                ],
-                secret: "💡 裝備：今天整天都在海上，防曬乳要塗厚一點！"
-            },
-            {
-                date: "2/16 (日)",
-                level: "LEVEL 6",
-                title: "猴子與巧克力",
-                img: "https://images.unsplash.com/photo-1590418606746-018840f9cd0f?w=600&q=80",
-                color: "bg-[#e17055]",
-                tasks: [
-                    { type: "spot", icon: "🍫", title: "巧克力山", desc: "世界奇景 + 眼鏡猴", tag: "包車" },
-                    { type: "food", icon: "🍦", title: "必吃冰淇淋", desc: "Bohol Bee Farm (蜜蜂農場)", tag: "海景" }
-                ],
-                secret: "💡 伴手禮：蜜蜂農場的木薯片(Cassava Chips)非常好吃！"
-            },
-            {
-                date: "2/17 (一)",
-                level: "LEVEL 7",
-                title: "返回馬尼拉",
-                img: "https://images.unsplash.com/photo-1536768138549-0414704e9c70?w=600&q=80",
-                color: "bg-[#0984e3]",
-                tasks: [
-                    { type: "transport", icon: "✈️", title: "大移動", desc: "船回宿霧 -> 飛機去馬尼拉", tag: "20:00抵" },
-                    { type: "food", icon: "🍔", title: "晚餐簡單吃", desc: "Shake Shack 或 Denny's", tag: "休息" },
-                    { type: "hotel", icon: "🏨", title: "最後住宿", desc: "Uptown Parksuites (BGC)", tag: "信義區" }
-                ],
-                secret: "💡 休息：今天交通時間很長，晚餐不要排大餐，早點睡！"
-            },
-            {
-                date: "2/18 (二)",
-                level: "LEVEL 8",
-                title: "完美句點",
-                img: "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80",
-                color: "bg-[#6c5ce7]",
-                tasks: [
-                    { type: "spot", icon: "🔬", title: "科學博物館", desc: "The Mind Museum", tag: "溜小孩" },
-                    { type: "food", icon: "🏆", title: "最後的饗宴", desc: "Mamou Meats 頂級牛排", tag: "5.0⭐" },
-                    { type: "transport", icon: "✈️", title: "回家囉", desc: "19:15 飛機回台北", tag: "ByeBye" }
-                ],
-                secret: "💡 必點：Mamou 的松露義大利麵是這趟旅程的冠軍！"
-            }
-        ];
+        createApp({
+            setup() {
+                const firebaseReady = ref(false);
+                const dbInstance = ref(null);
+                const fireOps = ref(null);
 
-        let currentIndex = 0;
-
-        function renderDay(index) {
-            const data = tripData[index];
-            const content = document.getElementById('gameContent');
-            const dayLabel = document.getElementById('dayLabel');
-            const dateLabel = document.getElementById('dateLabel');
-            const progressBar = document.getElementById('progressBar');
-
-            dayLabel.innerText = data.level;
-            dateLabel.innerText = data.date;
-            progressBar.style.width = \\`${((index + 1) / tripData.length) * 100}%\`;
-
-            const tasksHtml = data.tasks.map(task => {
-                let iconColor = "bg-white";
-                if(task.type === 'food') iconColor = "bg-[#FF7675]";
-                if(task.type === 'spot') iconColor = "bg-[#74b9ff]";
-                if(task.type === 'transport') iconColor = "bg-[#ffeaa7]";
-                if(task.type === 'hotel') iconColor = "bg-[#a29bfe]";
-
-                return `
-                <div class="option-btn">
-                    <div class="icon-box ${iconColor}">
-                        ${task.icon}
-                    </div>
-                    <div class="flex-1">
-                        <div class="flex justify-between">
-                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">${task.title}</span>
-                            <span class="text-[10px] font-bold bg-black text-[#FDCB6E] px-1 rounded">${task.tag}</span>
-                        </div>
-                        <div class="font-bold text-slate-800 text-sm leading-tight mt-1">${task.desc}</div>
-                    </div>
-                </div>
-                `;
-            }).join('');
-
-            content.innerHTML = `
-                <div class="pop-card animate-fade-in-up">
-                    <div class="pop-card-image">
-                        <img src="${data.img}" alt="${data.title}">
-                        <div class="pop-card-title">${data.title}</div>
-                    </div>
-                    <div class="p-4 bg-white">
-                         ${tasksHtml}
-                         <div onclick="this.innerText='${data.secret}'" class="secret-btn hover:bg-[#d63031] transition-colors">
-                            🤫 點我看本日密技
-                         </div>
-                    </div>
-                </div>
-            `;
-            
-            lucide.createIcons();
-        }
-
-        function changeDay(direction) {
-            const newIndex = currentIndex + direction;
-            if (newIndex >= 0 && newIndex < tripData.length) {
-                currentIndex = newIndex;
-                renderDay(currentIndex);
-            }
-        }
-
-        renderDay(0);
-
-        const style = document.createElement('style');
-        style.innerHTML = `
-            .animate-fade-in-up { animation: fadeInUp 0.3s ease-out; }
-            @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        `;
-        document.head.appendChild(style);
-
-    </script>
-</body>
-</html>
+                // --- Initial Data (The "Normal" Itinerary) ---
+                // 這裡預載了您要求的修正後行程
+                const initialItinerary = [
+                    // Day 1: 2/11
+                    { id: 'init-1', date: '2026-02-11', time: '12:15', title: '抵達宿霧 CEB', locationName: 'Mactan Airport', type: 'transport', lat: 10.308, lng: 123.979 },
+                    { id: 'init-2', date: '2026-02-11', time: '15:00', title: 'Abaca Baking 午餐', locationName: 'Ayala Center', type: 'food', tag: '4.4⭐', lat: 10.317, lng: 123.905 },
+                    { id: 'init-3', date: '2026-02-11', time: '18:30', title: 'The Pyramid 晚餐', locationName: 'IT Park', type: 'food', tag: '4.0⭐', lat: 10.329, lng: 123.905 },
+                    // Day 2: 2/12
+                    { id: 'init-4', date: '2026-02-12', time: '09:00', title: 'Ocean Park', locationName: 'SM Seaside Area', type: 'spot', lat: 10.283, lng: 123.882 },
+                    { id: 'init-5', date: '2026-02-12', time: '12:00', title: 'Aqua Dining', locationName: '海底隧道旁', type: 'food', tag: '需預約' },
+                    { id: 'init-6', date: '2026-02-12', time: '18:00', title: 'Texas Roadhouse', locationName: 'SM Seaside', type: 'food', tag: '4.8⭐', lat: 10.282, lng: 123.881 },
+                    //
