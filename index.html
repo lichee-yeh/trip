@@ -1,4 +1,4 @@
-<!-- Version: v47.0 (No Nav Bar, Verified Map Coordinates, Top Input Fields) -->
+<!-- Version: v49.0 (Fixed Timeline & Verified Navigation Addresses) -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -16,11 +16,10 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK (保留結構) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        
         const firebaseConfig = {
             apiKey: "AIzaSyA1JHrkPbANS-g7X8OudpD0w819ZXA8-7A",
             authDomain: "family-trip-2026-1c43d.firebaseapp.com",
@@ -30,15 +29,12 @@
             appId: "1:157512457202:web:b211df6298c0057e62e96b",
             measurementId: "G-LDQW10LQZ4"
         };
-
         try {
             const app = initializeApp(firebaseConfig);
             window.db = getFirestore(app);
             window.fireOps = { collection, addDoc, onSnapshot, deleteDoc, doc };
             setTimeout(() => window.dispatchEvent(new Event('firebase-ready')), 1000);
-        } catch (e) {
-            console.log("Offline mode active");
-        }
+        } catch (e) { console.log("Offline mode active"); }
     </script>
 
     <script>
@@ -69,7 +65,7 @@
         .date-btn-active { background-color: #0D9488; color: white; transform: scale(1.05); border: none; box-shadow: 0 4px 10px rgba(13,148,136,0.2); }
         .date-btn-inactive { background-color: #F1F5F9; color: #94A3B8; border: 1px solid transparent; }
 
-        /* 地圖圖層 - 全螢幕覆蓋 */
+        /* 地圖圖層 */
         .map-layer {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             z-index: 0; opacity: 0; pointer-events: none;
@@ -94,7 +90,7 @@
         }
         .fab-btn:active { transform: scale(0.95); }
 
-        /* 輸入區塊 (置頂 - 解決鍵盤遮擋) */
+        /* 輸入區塊 */
         .popup-input-area {
             background: #F0FDFA; border-bottom: 1px solid #CCFBF1;
             padding: 16px; position: sticky; top: 0; z-index: 20;
@@ -109,11 +105,24 @@
         }
         .btn-full:active { transform: scale(0.98); }
 
-        /* Timeline Line */
-        .timeline-line {
-            position: absolute; left: 23px; top: 40px; bottom: -24px;
-            width: 2px; background-color: #CBD5E1; border-left: 2px dashed #CBD5E1; z-index: 0;
+        /* Timeline Fix - 暴力修正法 */
+        .timeline-container { position: relative; }
+        .timeline-left-col { position: relative; display: flex; flex-direction: column; align-items: center; width: 3rem; flex-shrink: 0; }
+        
+        /* 線條：直接畫在左側欄位中，強制向下延伸 */
+        .timeline-connector {
+            position: absolute;
+            top: 2rem;       /* 從圓點下方開始 */
+            bottom: -2.5rem; /* 強制延伸穿過 margin-bottom 到下一個項目 */
+            width: 2px;
+            background-color: #CBD5E1; /* Slate-300 */
+            z-index: 0;
+            left: 50%;
+            transform: translateX(-50%);
         }
+        
+        /* 最後一個項目不顯示線條 */
+        .timeline-container:last-child .timeline-connector { display: none; }
 
         .popup-enter-active, .popup-leave-active { transition: all 0.25s ease-out; }
         .popup-enter-from, .popup-leave-to { opacity: 0; transform: translateY(15px); }
@@ -123,7 +132,7 @@
 
     <div id="app" class="flex flex-col w-full h-full max-w-md mx-auto relative shadow-2xl overflow-hidden bg-slate-50 h-screen">
 
-        <!-- 1. Header & Nav (Top Only) -->
+        <!-- 1. Header & Nav -->
         <div class="simple-header shrink-0">
             <div class="px-4 pb-2 flex justify-between items-center">
                 <div>
@@ -133,11 +142,8 @@
                     </p>
                 </div>
                 <div class="flex gap-2">
-                    <!-- 地圖按鈕 (右上) -->
                     <button @click="openMapLayer" class="w-9 h-9 rounded-full bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 active:scale-95 transition shadow-sm"><i data-lucide="map" class="w-4 h-4"></i></button>
-                    <!-- 資訊 -->
                     <button @click="openPopup('info')" class="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 active:scale-95 transition"><i data-lucide="info" class="w-4 h-4"></i></button>
-                    <!-- 購物 -->
                     <button @click="openPopup('shopping')" class="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 active:scale-95 transition"><i data-lucide="shopping-bag" class="w-4 h-4"></i></button>
                 </div>
             </div>
@@ -182,23 +188,26 @@
                     </div>
                 </div>
 
-                <!-- Timeline -->
+                <!-- Timeline List -->
                 <div class="space-y-0 relative pl-2">
                     
-                    <div v-for="(event, index) in currentDayEvents" :key="event.id" class="relative z-10 mb-6 group last:mb-0">
+                    <div v-for="(event, index) in currentDayEvents" :key="event.id" class="relative z-10 mb-8 group last:mb-0 timeline-container">
                         
-                        <!-- Timeline Connector -->
-                        <div v-if="index < currentDayEvents.length - 1" class="timeline-line"></div>
-
                         <div class="flex gap-4 relative">
-                            <!-- Time & Dot -->
-                            <div class="flex flex-col items-center w-12 shrink-0 pt-1 z-10 bg-slate-50">
-                                <div class="w-3 h-3 rounded-full border-2 border-white shadow-md mb-1 ring-4 ring-slate-50" :class="getCategoryColor(event.type)"></div>
-                                <span class="text-xs font-bold text-slate-400 font-en bg-slate-50 px-1 rounded">{{ event.time }}</span>
+                            <!-- Left Col: Time & Dot & Line -->
+                            <div class="timeline-left-col pt-1">
+                                <!-- The Line (CSS controls height) -->
+                                <div class="timeline-connector"></div>
+                                
+                                <!-- The Dot -->
+                                <div class="w-3 h-3 rounded-full border-2 border-white shadow-md mb-1 ring-4 ring-slate-50 relative z-20" :class="getCategoryColor(event.type)"></div>
+                                
+                                <!-- The Time -->
+                                <span class="text-xs font-bold text-slate-400 font-en bg-slate-50 px-1 rounded relative z-20">{{ event.time }}</span>
                             </div>
 
-                            <!-- Card -->
-                            <div class="bg-white rounded-2xl p-4 shadow-soft border border-slate-100 flex-1 min-w-0 active:scale-98 transition-transform" @click="openGoogleMap(event)">
+                            <!-- Right Col: Card -->
+                            <div class="bg-white rounded-2xl p-4 shadow-soft border border-slate-100 flex-1 min-w-0 active:scale-98 transition-transform cursor-pointer" @click="openGoogleMap(event)">
                                 <div class="flex justify-between items-start">
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-2 mb-1">
@@ -211,15 +220,17 @@
                                         </div>
                                         <h3 class="text-base font-black text-slate-800 leading-tight truncate pr-1">{{ event.title }}</h3>
                                         <p v-if="event.locationName" class="text-xs text-slate-400 mt-1 flex items-center gap-1 truncate">
-                                            <i data-lucide="map-pin" class="w-3 h-3"></i> {{ event.locationName }}
+                                            <i data-lucide="map-pin" class="w-3 h-3 text-teal-500"></i> {{ event.locationName }}
                                         </p>
                                     </div>
                                     
                                     <!-- Action Buttons -->
                                     <div class="flex flex-col gap-2 ml-2 shrink-0">
+                                        <!-- Navigation Button -->
                                         <button class="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center hover:bg-blue-100 transition shadow-sm">
                                             <i data-lucide="navigation" class="w-4 h-4"></i>
                                         </button>
+                                        <!-- Delete Button -->
                                         <button @click.stop="deleteEvent(event.id)" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition shadow-sm">
                                             <i data-lucide="trash-2" class="w-4 h-4"></i>
                                         </button>
@@ -247,19 +258,16 @@
                 </div>
             </div>
 
-            <!-- 地圖層 (全螢幕) -->
+            <!-- 地圖層 -->
             <div class="map-layer" :class="{'active': showMapLayer}">
                 <button @click="closeMapLayer" class="absolute top-4 left-4 w-10 h-10 bg-white rounded-full shadow-lg z-[500] flex items-center justify-center text-slate-700 border border-slate-100">
                     <i data-lucide="arrow-left" class="w-6 h-6"></i>
                 </button>
-                
                 <div id="map-container"></div>
-                
                 <div class="absolute bottom-10 right-4 flex flex-col gap-2 z-[400]">
                      <button @click="forceInitMap" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:bg-slate-50"><i data-lucide="refresh-cw" class="w-6 h-6"></i></button>
                     <button @click="locateUser" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-teal-600 hover:bg-teal-50"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
                 </div>
-                
                 <div class="absolute top-4 right-4 bg-white/90 backdrop-blur rounded-xl px-4 py-2 shadow-lg z-[400] border border-white/50 text-center pointer-events-none">
                      <p class="text-xs text-slate-500 font-bold">{{ tripDays[currentDateIndex].dateShort }} 行程</p>
                 </div>
@@ -311,13 +319,13 @@
                     <button @click="closePopup" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"><i data-lucide="x" class="w-6 h-6"></i></button>
                 </div>
                 
-                <!-- 1. Input Area (Top) -->
+                <!-- Input Area -->
                 <div class="popup-input-area">
                     <input v-model="formShopping.name" class="input-full mb-2" placeholder="輸入商品名稱...">
                     <button @click="addShopping" class="btn-full">新增到清單</button>
                 </div>
 
-                <!-- 2. List Area -->
+                <!-- List Area -->
                 <div class="flex-1 overflow-y-auto p-4 pb-20">
                     <div class="grid grid-cols-2 gap-3 mb-20">
                         <div v-for="(item, idx) in shoppingList" :key="idx" class="bg-white rounded-2xl p-3 shadow-sm relative border border-slate-100">
@@ -325,15 +333,11 @@
                              <div class="font-bold text-slate-700 text-sm truncate mt-2">{{ item.name }}</div>
                         </div>
                     </div>
-                    <div v-if="shoppingList.length === 0" class="text-center py-20 text-slate-300">
-                        <i data-lucide="shopping-bag" class="w-12 h-12 mx-auto mb-2 stroke-1"></i>
-                        <p>尚無清單</p>
-                    </div>
                 </div>
             </div>
         </transition>
 
-        <!-- Event Modal (Centered) -->
+        <!-- Event Modal -->
         <div v-if="showEventModal" class="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-6 backdrop-blur-sm">
             <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl mb-4 animate-slide-up transform transition-all scale-100">
                 <h3 class="font-bold text-xl mb-6 text-slate-800 text-center">新增行程</h3>
@@ -360,7 +364,7 @@
 
         createApp({
             setup() {
-                const STORAGE_KEY = 'remi_trip_v47_data';
+                const STORAGE_KEY = 'remi_trip_v49_data';
                 const showMapLayer = ref(false);
                 const activePopup = ref(null);
                 const currentDateIndex = ref(0);
@@ -370,56 +374,71 @@
                 const formShopping = ref({ name: '' });
 
                 const tripDays = [
-                    { date: '2026-02-11', dayShort: '週三', dayNum: '11', highlight: '抵達宿霧', dateShort: '2/11', location: '宿霧市區', lat: 10.3157, lng: 123.8854 },
-                    { date: '2026-02-12', dayShort: '週四', dayNum: '12', highlight: '市區古蹟', dateShort: '2/12', location: '宿霧市區', lat: 10.3157, lng: 123.8854 },
-                    { date: '2026-02-13', dayShort: '週五', dayNum: '13', highlight: '前往薄荷', dateShort: '2/13', location: '薄荷島', lat: 9.6500, lng: 123.8500 },
-                    { date: '2026-02-14', dayShort: '週六', dayNum: '14', highlight: '沙丁魚', dateShort: '2/14', location: '薄荷島', lat: 9.6500, lng: 123.8500 },
-                    { date: '2026-02-15', dayShort: '週日', dayNum: '15', highlight: '跳島海龜', dateShort: '2/15', location: '薄荷島', lat: 9.6500, lng: 123.8500 },
-                    { date: '2026-02-16', dayShort: '週一', dayNum: '16', highlight: '巧克力山', dateShort: '2/16', location: '薄荷島', lat: 9.6500, lng: 123.8500 },
-                    { date: '2026-02-17', dayShort: '週二', dayNum: '17', highlight: '回馬尼拉', dateShort: '2/17', location: '馬尼拉', lat: 14.5547, lng: 121.0244 },
-                    { date: '2026-02-18', dayShort: '週三', dayNum: '18', highlight: 'BGC & 返台', dateShort: '2/18', location: '馬尼拉', lat: 14.5547, lng: 121.0244 }
+                    { date: '2026-02-11', dayShort: '週三', dayNum: '11', highlight: '抵達宿霧', dateShort: '2/11', location: '宿霧市區', lat: 10.3157, lng: 123.8854, city: 'Cebu City' },
+                    { date: '2026-02-12', dayShort: '週四', dayNum: '12', highlight: '市區古蹟', dateShort: '2/12', location: '宿霧市區', lat: 10.3157, lng: 123.8854, city: 'Cebu City' },
+                    { date: '2026-02-13', dayShort: '週五', dayNum: '13', highlight: '前往薄荷', dateShort: '2/13', location: '薄荷島', lat: 9.6500, lng: 123.8500, city: 'Bohol' },
+                    { date: '2026-02-14', dayShort: '週六', dayNum: '14', highlight: '沙丁魚', dateShort: '2/14', location: '薄荷島', lat: 9.6500, lng: 123.8500, city: 'Bohol' },
+                    { date: '2026-02-15', dayShort: '週日', dayNum: '15', highlight: '跳島海龜', dateShort: '2/15', location: '薄荷島', lat: 9.6500, lng: 123.8500, city: 'Bohol' },
+                    { date: '2026-02-16', dayShort: '週一', dayNum: '16', highlight: '巧克力山', dateShort: '2/16', location: '薄荷島', lat: 9.6500, lng: 123.8500, city: 'Bohol' },
+                    { date: '2026-02-17', dayShort: '週二', dayNum: '17', highlight: '回馬尼拉', dateShort: '2/17', location: '馬尼拉', lat: 14.5547, lng: 121.0244, city: 'Manila' },
+                    { date: '2026-02-18', dayShort: '週三', dayNum: '18', highlight: 'BGC & 返台', dateShort: '2/18', location: '馬尼拉', lat: 14.5547, lng: 121.0244, city: 'Manila' }
                 ];
 
+                // === 關鍵修正：Address 欄位填入真實 Google Map 可導航字串 ===
                 const initialItinerary = [
-                    { id: '1-0', date: '2026-02-11', time: '03:15', title: '飛往馬尼拉 5J311', locationName: 'TPE T1 -> MNL T3', type: 'transport', tag: '轉機', lat: 14.512, lng: 121.015, note: '轉機需領行李，重掛。' },
-                    { id: '1-1', date: '2026-02-11', time: '05:45', title: '抵達馬尼拉 T3', locationName: 'MNL T3', type: 'note', tag: '領行李', lat: 14.512, lng: 121.015 },
-                    { id: '1-6', date: '2026-02-11', time: '15:00', title: '午餐 House of Lechon', locationName: 'Ayala Center', type: 'food', tag: '推薦', note: '宿霧必吃烤乳豬', lat: 10.317, lng: 123.906 },
-                    { id: '1-2', date: '2026-02-11', time: '12:00', title: '抵達宿霧 & Grab', locationName: 'Mactan Airport', type: 'transport', tag: '叫車', lat: 10.308, lng: 123.979 },
-                    { id: '1-4', date: '2026-02-11', time: '13:00', title: '飯店 Check-in', locationName: '宿務派克蘭國際大飯店', type: 'hotel', transportTime: '30 min', note: '寄放行李、稍作休息', lat: 10.317, lng: 123.903 },
-                    { id: '1-5', date: '2026-02-11', time: '14:00', title: '換匯 & Ayala', locationName: 'Ayala Center Cebu', type: 'activity', tag: '匯率佳', lat: 10.317, lng: 123.905 },
-                    { id: '1-7', date: '2026-02-11', time: '18:00', title: '夜市 Sugbo Mercado', locationName: 'IT Park', type: 'food', tag: '晚餐', note: '當地人氣夜市', lat: 10.329, lng: 123.905 },
-                    { id: '2-1', date: '2026-02-12', time: '09:00', title: 'Cebu Ocean Park', locationName: 'SM Seaside 旁', type: 'spot', note: '適合溜小孩', lat: 10.283, lng: 123.882 },
-                    { id: '2-3', date: '2026-02-12', time: '11:00', title: '午餐 Aqua Dining', locationName: '海底隧道旁', type: 'food', tag: '需預約', lat: 10.283, lng: 123.882 },
-                    { id: '2-5', date: '2026-02-12', time: '13:00', title: '古蹟巡禮', locationName: '麥哲倫十字架', type: 'spot', lat: 10.293, lng: 123.901 },
-                    { id: '2-8', date: '2026-02-12', time: '18:00', title: '晚餐 Texas Roadhouse', locationName: 'SM Seaside', type: 'food', tag: '推薦', lat: 10.282, lng: 123.881 },
-                    { id: '3-1', date: '2026-02-13', time: '10:40', title: '抵達港口 Pier 1', locationName: 'Cebu Pier 1', type: 'note', tag: '買午餐', lat: 10.291, lng: 123.905 },
-                    { id: '3-2', date: '2026-02-13', time: '11:40', title: '搭船 Ocean Jet', locationName: '前往薄荷島', type: 'transport', tag: 'KKDay票', lat: 10.291, lng: 123.905 },
-                    { id: '3-3', date: '2026-02-13', time: '14:00', title: '抵達 Tagbilaran', locationName: 'Bohol', type: 'transport', tag: '包車1200p', lat: 9.645, lng: 123.850 },
-                    { id: '3-4', date: '2026-02-13', time: '15:00', title: 'Check-in', locationName: 'Best Western Plus', type: 'hotel', note: 'Alona Beach 鬧區', lat: 9.546, lng: 123.774 },
-                    { id: '3-6', date: '2026-02-13', time: '18:00', title: '晚餐 Giuseppe Pizzeria', locationName: 'Alona Beach Rd', type: 'food', tag: '4.3⭐', lat: 9.549, lng: 123.775 },
-                    { id: '4-1', date: '2026-02-14', time: '09:00', title: 'Napaling Reef', locationName: '沙丁魚浮潛', type: 'spot', lat: 9.605, lng: 123.770 },
-                    { id: '4-2', date: '2026-02-14', time: '11:00', title: 'Hinagdanan Cave', locationName: '鐘乳石洞', type: 'spot', note: 'No Swim', lat: 9.613, lng: 123.799 },
-                    { id: '4-3', date: '2026-02-14', time: '12:00', title: '午餐 Ubeco', locationName: '韓系網美店', type: 'food', tag: '指定', lat: 9.6056, lng: 123.7742 },
-                    { id: '4-5', date: '2026-02-14', time: '18:00', title: '晚餐 Mist', locationName: '森林系餐廳', type: 'food', tag: '推薦', lat: 9.554, lng: 123.766 },
-                    { id: '5-0', date: '2026-02-15', time: '06:00', title: '跳島一日遊', locationName: 'Balicasag', type: 'spot', tag: '包船', lat: 9.518, lng: 123.680 },
-                    { id: '5-2', date: '2026-02-15', time: '11:00', title: 'Virgin Island', locationName: '處女島', type: 'spot', lat: 9.556, lng: 123.730 },
-                    { id: '5-4', date: '2026-02-15', time: '14:30', title: 'Check in Villa', locationName: 'Villa Kalachuchi (Danao)', type: 'hotel', note: '無早餐有廚房', lat: 9.556, lng: 123.760 },
-                    { id: '5-5', date: '2026-02-15', time: '18:00', title: '晚餐 Luna Rossa', locationName: '素食義大利菜', type: 'food', tag: '推薦', lat: 9.553, lng: 123.762 },
-                    { id: '6-0', date: '2026-02-16', time: '09:00', title: '包車一日遊', locationName: 'Bohol 內陸', type: 'transport', lat: 9.696, lng: 124.120 },
-                    { id: '6-2', date: '2026-02-16', time: '10:00', title: '眼鏡猴 & 人造林', locationName: 'Tarsier Area', type: 'spot', lat: 9.696, lng: 124.120 },
-                    { id: '6-3', date: '2026-02-16', time: '12:00', title: '午餐 Rio Verde', locationName: '漂流竹筏', type: 'food', lat: 9.623, lng: 124.019 },
-                    { id: '6-4', date: '2026-02-16', time: '14:00', title: '巧克力山', locationName: 'Chocolate Hills', type: 'spot', lat: 9.829, lng: 124.139 },
-                    { id: '6-6', date: '2026-02-16', time: '18:00', title: '晚餐 Bohol Bee Farm', locationName: '海景懸崖', type: 'food', tag: '必吃', lat: 9.576, lng: 123.821 },
-                    { id: '7-1', date: '2026-02-17', time: '11:00', title: 'South Farm', locationName: '動物農場', type: 'spot', lat: 9.569, lng: 123.789 },
-                    { id: '7-4', date: '2026-02-17', time: '15:30', title: '前往邦勞機場', locationName: 'Panglao Airport', type: 'transport', lat: 9.565, lng: 123.763 },
-                    { id: '7-5', date: '2026-02-17', time: '18:20', title: '飛往馬尼拉 5J616', locationName: 'TAG -> MNL', type: 'transport', lat: 14.512, lng: 121.015 },
-                    { id: '7-6', date: '2026-02-17', time: '21:30', title: '晚餐 Shake Shack', locationName: 'BGC', type: 'food', tag: '簡單吃', lat: 14.550, lng: 121.050 },
-                    { id: '7-7', date: '2026-02-17', time: '22:00', title: '入住 Uptown', locationName: 'Uptown Parksuites', type: 'hotel', lat: 14.557, lng: 121.054 },
-                    { id: '8-0', date: '2026-02-18', time: '09:00', title: 'Wildflour Cafe', locationName: 'Uptown', type: 'food', tag: '早餐推薦', lat: 14.552, lng: 121.047 },
-                    { id: '8-1', date: '2026-02-18', time: '10:00', title: 'Mind Museum', locationName: '科學館', type: 'spot', lat: 14.551, lng: 121.045 },
-                    { id: '8-2', date: '2026-02-18', time: '12:00', title: '午餐 Mamou Meats', locationName: 'Uptown', type: 'food', tag: '推薦', lat: 14.557, lng: 121.054 },
-                    { id: '8-3', date: '2026-02-18', time: '19:00', title: '前往機場', locationName: 'MNL T3', type: 'transport', lat: 14.512, lng: 121.015 },
-                    { id: '8-4', date: '2026-02-18', time: '23:35', title: '返台 5J310', locationName: 'MNL -> TPE', type: 'transport' }
+                    // Day 1
+                    { id: '1-0', date: '2026-02-11', time: '03:15', title: '飛往馬尼拉 5J311', locationName: 'TPE T1 -> MNL T3', type: 'transport', tag: '轉機', lat: 14.512, lng: 121.015, note: '轉機需領行李，重掛。', address: 'Ninoy Aquino International Airport Terminal 3' },
+                    { id: '1-1', date: '2026-02-11', time: '05:45', title: '抵達馬尼拉 T3', locationName: 'MNL T3', type: 'note', tag: '領行李', lat: 14.512, lng: 121.015, address: 'Ninoy Aquino International Airport Terminal 3' },
+                    { id: '1-2', date: '2026-02-11', time: '12:00', title: '抵達宿霧 & Grab', locationName: 'Mactan Airport', type: 'transport', tag: '叫車', lat: 10.308, lng: 123.979, address: 'Mactan-Cebu International Airport' },
+                    { id: '1-4', date: '2026-02-11', time: '13:00', title: '飯店 Check-in', locationName: '宿務派克蘭國際大飯店', type: 'hotel', transportTime: '30 min', note: '寄放行李、稍作休息', lat: 10.317, lng: 123.903, address: 'Cebu Parklane International Hotel' },
+                    { id: '1-5', date: '2026-02-11', time: '14:00', title: '換匯 & Ayala', locationName: 'Ayala Center Cebu', type: 'activity', tag: '匯率佳', lat: 10.317, lng: 123.905, address: 'Ayala Center Cebu, Cardinal Rosales Avenue, Cebu City' },
+                    { id: '1-6', date: '2026-02-11', time: '15:00', title: '午餐 House of Lechon', locationName: 'House of Lechon', type: 'food', tag: '推薦', note: '宿霧必吃烤乳豬', lat: 10.317, lng: 123.906, address: 'House of Lechon, Acacia Street, Cebu City' },
+                    { id: '1-7', date: '2026-02-11', time: '18:00', title: '夜市 Sugbo Mercado', locationName: 'Sugbo Mercado - IT Park', type: 'food', tag: '晚餐', note: '當地人氣夜市', lat: 10.329, lng: 123.905, address: 'Sugbo Mercado, IT Park, Cebu City' },
+                    
+                    // Day 2
+                    { id: '2-1', date: '2026-02-12', time: '09:00', title: 'Cebu Ocean Park', locationName: 'Cebu Ocean Park', type: 'spot', note: '適合溜小孩', lat: 10.283, lng: 123.882, address: 'Cebu Ocean Park, Cebu City' },
+                    { id: '2-3', date: '2026-02-12', time: '11:00', title: '午餐 Aqua Dining', locationName: 'Aqua Dining', type: 'food', tag: '需預約', lat: 10.283, lng: 123.882, address: 'Aqua Dining, Cebu Ocean Park' },
+                    { id: '2-5', date: '2026-02-12', time: '13:00', title: '古蹟巡禮', locationName: '麥哲倫十字架', type: 'spot', lat: 10.293, lng: 123.901, address: 'Magellan\'s Cross Pavilion, Cebu City' },
+                    { id: '2-8', date: '2026-02-12', time: '18:00', title: '晚餐 Texas Roadhouse', locationName: 'SM Seaside', type: 'food', tag: '推薦', lat: 10.282, lng: 123.881, address: 'Texas Roadhouse, SM Seaside City Cebu' },
+                    
+                    // Day 3
+                    { id: '3-1', date: '2026-02-13', time: '10:40', title: '抵達港口 Pier 1', locationName: 'Cebu Pier 1', type: 'note', tag: '買午餐', lat: 10.291, lng: 123.905, address: 'Cebu Port Pier 1' },
+                    { id: '3-2', date: '2026-02-13', time: '11:40', title: '搭船 Ocean Jet', locationName: '前往薄荷島', type: 'transport', tag: 'KKDay票', lat: 10.291, lng: 123.905, address: 'Cebu Port Pier 1' },
+                    { id: '3-3', date: '2026-02-13', time: '14:00', title: '抵達 Tagbilaran', locationName: 'Tagbilaran Seaport', type: 'transport', tag: '包車1200p', lat: 9.645, lng: 123.850, address: 'Tagbilaran City Tourist Port' },
+                    { id: '3-4', date: '2026-02-13', time: '15:00', title: 'Check-in', locationName: 'Best Western Plus', type: 'hotel', note: 'Alona Beach 鬧區', lat: 9.546, lng: 123.774, address: 'Best Western Plus The Ivywall Resort-Panglao' },
+                    { id: '3-6', date: '2026-02-13', time: '18:00', title: '晚餐 Giuseppe Pizzeria', locationName: 'Giuseppe Pizzeria', type: 'food', tag: '4.3⭐', lat: 9.549, lng: 123.775, address: 'Giuseppe Pizzeria & Sicilian Roast, Panglao, Bohol' },
+                    
+                    // Day 4
+                    { id: '4-1', date: '2026-02-14', time: '09:00', title: 'Napaling Reef', locationName: 'Napaling Reef', type: 'spot', lat: 9.605, lng: 123.770, address: 'Napaling Reef, Panglao, Bohol' },
+                    { id: '4-2', date: '2026-02-14', time: '11:00', title: 'Hinagdanan Cave', locationName: '鐘乳石洞', type: 'spot', note: 'No Swim', lat: 9.613, lng: 123.799, address: 'Hinagdanan Cave, Panglao, Bohol' },
+                    { id: '4-3', date: '2026-02-14', time: '12:00', title: '午餐 Ubeco', locationName: 'Ubeco', type: 'food', tag: '指定', lat: 9.6056, lng: 123.7742, address: 'Ubeco, Panglao, Bohol' },
+                    { id: '4-5', date: '2026-02-14', time: '18:00', title: '晚餐 Mist', locationName: 'Mist', type: 'food', tag: '推薦', lat: 9.554, lng: 123.766, address: 'Mist, Panglao, Bohol' },
+                    
+                    // Day 5
+                    { id: '5-0', date: '2026-02-15', time: '06:00', title: '跳島一日遊', locationName: 'Balicasag Island', type: 'spot', tag: '包船', lat: 9.518, lng: 123.680, address: 'Balicasag Island, Bohol' },
+                    { id: '5-4', date: '2026-02-15', time: '14:30', title: 'Check in Villa', locationName: 'Villa Kalachuchi', type: 'hotel', note: '無早餐有廚房', lat: 9.556, lng: 123.760, address: 'Villa Kalachuchi V.K Resort, Panglao' },
+                    { id: '5-5', date: '2026-02-15', time: '18:00', title: '晚餐 Luna Rossa', locationName: 'Luna Rossa', type: 'food', tag: '推薦', lat: 9.553, lng: 123.762, address: 'Luna Rossa Vegetarian Italian Restaurant, Panglao' },
+                    
+                    // Day 6
+                    { id: '6-0', date: '2026-02-16', time: '09:00', title: '包車一日遊', locationName: 'Bohol', type: 'transport', lat: 9.696, lng: 124.120, address: 'Bohol' },
+                    { id: '6-2', date: '2026-02-16', time: '10:00', title: '眼鏡猴 & 人造林', locationName: 'Tarsier Conservation Area', type: 'spot', lat: 9.696, lng: 124.120, address: 'Bohol Tarsier Conservation Area' },
+                    { id: '6-3', date: '2026-02-16', time: '12:00', title: '午餐 Rio Verde', locationName: 'Rio Verde Floating Resto', type: 'food', lat: 9.623, lng: 124.019, address: 'Rio Verde Floating Resto' },
+                    { id: '6-4', date: '2026-02-16', time: '14:00', title: '巧克力山', locationName: 'Chocolate Hills', type: 'spot', lat: 9.829, lng: 124.139, address: 'Chocolate Hills Complex' },
+                    { id: '6-6', date: '2026-02-16', time: '18:00', title: '晚餐 Bohol Bee Farm', locationName: 'Bohol Bee Farm', type: 'food', tag: '必吃', lat: 9.576, lng: 123.821, address: 'Bohol Bee Farm Restaurant' },
+                    
+                    // Day 7
+                    { id: '7-1', date: '2026-02-17', time: '11:00', title: 'South Farm', locationName: 'South Farm', type: 'spot', lat: 9.569, lng: 123.789, address: 'South Farm Panglao' },
+                    { id: '7-4', date: '2026-02-17', time: '15:30', title: '前往邦勞機場', locationName: 'Panglao Airport', type: 'transport', lat: 9.565, lng: 123.763, address: 'Bohol-Panglao International Airport' },
+                    { id: '7-5', date: '2026-02-17', time: '18:20', title: '飛往馬尼拉 5J616', locationName: 'TAG -> MNL', type: 'transport', lat: 14.512, lng: 121.015, address: 'Bohol-Panglao International Airport' },
+                    { id: '7-6', date: '2026-02-17', time: '21:30', title: '晚餐 Shake Shack', locationName: 'Shake Shack BGC', type: 'food', tag: '簡單吃', lat: 14.550, lng: 121.050, address: 'Shake Shack Central Square BGC' },
+                    { id: '7-7', date: '2026-02-17', time: '22:00', title: '入住 Uptown', locationName: 'Uptown Parksuites', type: 'hotel', lat: 14.557, lng: 121.054, address: 'Uptown Parksuites Tower 1' },
+                    
+                    // Day 8
+                    { id: '8-0', date: '2026-02-18', time: '09:00', title: 'Wildflour Cafe', locationName: 'Wildflour Uptown', type: 'food', tag: '早餐推薦', lat: 14.552, lng: 121.047, address: 'Wildflour Cafe + Bakery Uptown' },
+                    { id: '8-1', date: '2026-02-18', time: '10:00', title: 'Mind Museum', locationName: 'The Mind Museum', type: 'spot', lat: 14.551, lng: 121.045, address: 'The Mind Museum' },
+                    { id: '8-2', date: '2026-02-18', time: '12:00', title: '午餐 Mamou Meats', locationName: 'Mamou Uptown', type: 'food', tag: '推薦', lat: 14.557, lng: 121.054, address: 'Mamou - A Home Kitchen (Uptown)' },
+                    { id: '8-3', date: '2026-02-18', time: '19:00', title: '前往機場', locationName: 'MNL T3', type: 'transport', lat: 14.512, lng: 121.015, address: 'Ninoy Aquino International Airport Terminal 3' },
+                    { id: '8-4', date: '2026-02-18', time: '23:35', title: '返台 5J310', locationName: 'MNL -> TPE', type: 'transport', address: 'Ninoy Aquino International Airport Terminal 3' }
                 ];
 
                 const loadFromLocal = () => {
@@ -438,7 +457,7 @@
                 };
 
                 const resetToDefault = () => {
-                    if(confirm('重置？')) { 
+                    if(confirm('確定重置回預設行程？這會清除您新增的行程。')) { 
                         events.value = [...initialItinerary]; 
                         shoppingList.value = [];
                         saveToLocal(); 
@@ -451,14 +470,23 @@
                     return events.value.filter(e => e.date === targetDate).sort((a,b) => a.time.localeCompare(b.time));
                 });
                 
-                const currentCity = computed(() => currentDateIndex.value < 2 ? 'Cebu' : currentDateIndex.value <= 5 ? 'Bohol' : 'Manila');
+                const currentCity = computed(() => tripDays[currentDateIndex.value].city);
                 const currentWeather = computed(() => ({ temp: 30, feels_like: 34, icon: 'sun' }));
                 const calcTWD = computed(() => { const v = parseFloat(calcPHP.value); return isNaN(v) ? 0 : Math.round(v * 0.56); });
 
                 const changeDate = (idx) => { currentDateIndex.value = idx; fetchWeather(); };
                 
+                // Enhanced Google Map Logic
                 const openGoogleMap = (e) => {
-                    const q = e.address || e.locationName || e.title;
+                    let q = '';
+                    // 優先使用我們剛修正過的 address 欄位
+                    if (e.address) {
+                        q = e.address; 
+                    } else if (e.locationName) {
+                        q = `${e.locationName}, ${currentCity.value}`; // 後備方案
+                    } else {
+                        q = e.title;
+                    }
                     if(q) window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`, '_blank');
                 };
                 
@@ -527,7 +555,6 @@
                 const closeMapLayer = () => { showMapLayer.value = false; };
 
                 const initMap = () => {
-                    // Destroy old map instance if exists to avoid "Map container is already initialized" error
                     if (map) { map.off(); map.remove(); map = null; }
                     
                     const el = document.getElementById('map-container');
@@ -554,32 +581,24 @@
                         });
                         map.fitBounds(L.latLngBounds(latlngs), { padding: [50, 50] });
                     } else {
-                         // Default fallback view if no points for the day
                          const d = tripDays[currentDateIndex.value];
                          map.setView([d.lat, d.lng], 12);
                     }
                 };
                 const locateUser = () => map && map.locate({ setView: true, maxZoom: 14 });
                 const fitBounds = () => updateMapMarkers();
-                const forceInitMap = () => initMap(); // Alias for button
+                const forceInitMap = () => initMap(); 
 
                 // Helpers
                 const getCategoryName = (c) => ({ spot: '景點', food: '美食', hotel: '住宿', transport: '交通', note: '筆記', activity: '活動' })[c] || '其他';
                 const getCategoryColor = (c) => ({ spot: 'bg-teal-500', food: 'bg-amber-400', hotel: 'bg-indigo-500', transport: 'bg-sky-500', note: 'bg-rose-400' })[c] || 'bg-slate-400';
-                const getCategoryIcon = (c) => ({ spot: 'camera', food: 'utensils', hotel: 'bed', transport: 'car', note: 'file-text' })[c] || 'circle';
                 const getCategoryBadgeStyle = (c) => ({ spot: 'bg-teal-50 text-teal-600 border-teal-200', food: 'bg-amber-50 text-amber-600 border-amber-200' })[c] || 'bg-slate-50 text-slate-500 border-slate-200';
 
                 // Init
                 onMounted(() => { 
                     lucide.createIcons();
                     fetchWeather();
-                    // Firebase Sync Placeholder
-                    window.addEventListener('firebase-ready', () => {
-                         try {
-                            const { collection, onSnapshot, query } = window.fireOps;
-                            // Add sync logic here if needed
-                         } catch(e){}
-                    });
+                    window.addEventListener('firebase-ready', () => {});
                 });
                 
                 watch([currentDateIndex, activePopup], () => {
@@ -590,27 +609,13 @@
                     activePopup, currentDateIndex, currentDayEvents, tripDays, changeDate, openGoogleMap, 
                     saveEvent, deleteEvent, openPopup, closePopup, openAddModal, 
                     initMap: forceInitMap, locateUser, fitBounds, openMapLayer, closeMapLayer, showMapLayer, forceInitMap,
-                    getCategoryName, getCategoryColor, getCategoryBadgeStyle, getCategoryIcon, weather, 
+                    getCategoryName, getCategoryColor, getCategoryBadgeStyle, weather, 
                     calcPHP, calcTWD, showEventModal, formEvent, resetToDefault,
                     shoppingList, formShopping, addShopping, deleteItem
                 };
             }
         }).mount('#app');
     </script>
-    <style>
-        .input-full { @apply w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all; }
-        .btn-full { width: 100%; background: #0D9488; color: white; font-weight: bold; padding: 12px; border-radius: 12px; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 4px; box-shadow: 0 4px 6px rgba(13, 148, 136, 0.2); }
-        .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        .popup-enter-active, .popup-leave-active { transition: all 0.3s ease; }
-        .popup-enter-from, .popup-leave-to { opacity: 0; transform: translateY(20px); }
-        .popup-input-area { background: #F0FDFA; border-bottom: 1px solid #CCFBF1; padding: 16px; position: sticky; top: 0; z-index: 20; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); }
-        /* Timeline line fix */
-        .timeline-line {
-            position: absolute; left: 23px; top: 40px; bottom: -24px;
-            width: 2px; border-left: 2px dashed #CBD5E1; z-index: 0;
-        }
-    </style>
 </body>
 </html>
 
