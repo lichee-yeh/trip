@@ -143,10 +143,10 @@
             </div>
 
             <!-- Scrollable Content -->
-            <div class="flex-1 overflow-y-auto px-4 pt-4 pb-32 hide-scrollbar space-y-5 bg-slate-50">
+            <div class="flex-1 overflow-y-auto px-4 pt-4 pb-32 hide-scrollbar space-y-4 bg-slate-50">
                 
                 <!-- Weather Widget -->
-                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between">
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between mb-2">
                     <div class="flex items-center gap-3">
                         <div class="bg-amber-100 p-2 rounded-full text-amber-500">
                             <i :data-lucide="currentWeather.icon" class="w-6 h-6"></i>
@@ -165,62 +165,82 @@
                     </div>
                 </div>
 
-                <!-- Timeline Items -->
-                <div class="space-y-0 relative pl-2">
-                    <div class="absolute left-[21px] top-4 bottom-10 w-[2px] bg-slate-200 z-0"></div>
+                <!-- NEW CARD DESIGN: Timeline Items -->
+                <div class="space-y-4">
+                    <div v-for="(event, index) in currentDayEvents" :key="event.id" class="group relative">
+                        
+                        <!-- Transport Line -->
+                         <div v-if="index < currentDayEvents.length - 1" 
+                             class="absolute left-[23px] top-12 bottom-[-16px] w-[2px] border-l-2 border-dashed border-slate-200 z-0"></div>
 
-                    <div v-for="(event, index) in currentDayEvents" :key="event.id" class="relative z-10 mb-6 group last:mb-0">
-                        <div class="flex gap-4">
-                            <!-- Time & Dot -->
-                            <div class="flex flex-col items-center w-12 shrink-0 pt-1 bg-slate-50">
-                                <div class="w-3 h-3 rounded-full border-2 border-white shadow-sm mb-1" :class="getCategoryColor(event.type)"></div>
-                                <span class="text-xs font-bold text-slate-400 font-en">{{ event.time }}</span>
+                        <!-- Card Body -->
+                        <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 flex gap-4 items-start relative z-10">
+                            
+                            <!-- 1. Left: Icon & Time -->
+                            <div class="flex flex-col items-center shrink-0">
+                                <div class="w-12 h-12 rounded-full flex items-center justify-center text-white shadow-sm mb-2"
+                                     :class="getCategoryColor(event.type)">
+                                    <i :data-lucide="getCategoryIcon(event.type)" class="w-6 h-6"></i>
+                                </div>
+                                <span class="text-sm font-black text-slate-700 font-en">{{ event.time }}</span>
                             </div>
 
-                            <div class="flex-1 min-w-0">
-                                <!-- Transport Line Info -->
-                                <div v-if="index > 0 && event.transportTime" class="flex items-center gap-1 text-[10px] text-slate-400 mb-2 pl-1">
-                                    <i data-lucide="arrow-down" class="w-3 h-3"></i>
-                                    <span>{{ event.transportTime }}</span>
+                            <!-- 2. Middle: Content -->
+                            <div class="flex-1 min-w-0 pt-1">
+                                <h3 class="text-lg font-bold text-slate-800 leading-tight mb-1 truncate pr-2">
+                                    {{ event.title }}
+                                </h3>
+                                
+                                <div class="flex items-center gap-1 text-xs text-slate-400 font-medium mb-3">
+                                    <i data-lucide="map-pin" class="w-3 h-3 text-slate-400/80"></i>
+                                    <span class="truncate">{{ event.locationName || ' ' }}</span>
                                 </div>
 
-                                <!-- Actual Card -->
-                                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 active:scale-98 transition-transform" @click="openMap(event.locationName || event.title)">
-                                    <div class="flex justify-between items-start mb-1">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-[10px] px-1.5 py-0.5 rounded border font-bold" :class="getCategoryBadgeStyle(event.type)">{{ getCategoryName(event.type) }}</span>
-                                            <span v-if="event.tag" class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-bold flex items-center">
-                                                <i data-lucide="star" class="w-2 h-2 mr-1 fill-yellow-700"></i> {{ event.tag }}
-                                            </span>
-                                        </div>
+                                <!-- Note Box (Reference style) -->
+                                <div class="bg-slate-50 rounded-xl p-3 border border-slate-100/80">
+                                    <div class="flex items-center gap-1.5 mb-1 text-xs font-bold text-amber-500">
+                                        <i data-lucide="pen-tool" class="w-3 h-3"></i> 備註
                                     </div>
-                                    <h3 class="text-base font-black text-slate-800 leading-tight mb-1">{{ event.title }}</h3>
-                                    <div class="text-xs text-slate-500 flex items-center gap-1 mb-2">
-                                        <i data-lucide="map-pin" class="w-3 h-3 text-slate-400"></i>
-                                        <span class="truncate">{{ event.locationName }}</span>
-                                    </div>
-                                    <div v-if="event.note" class="text-xs bg-slate-50 p-2 rounded-lg text-slate-600 border border-slate-100 leading-relaxed">{{ event.note }}</div>
-                                    
-                                    <!-- Google Maps Button -->
-                                    <div class="mt-3 flex justify-end">
-                                        <button class="flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full hover:bg-blue-100">
-                                            <i data-lucide="navigation" class="w-3 h-3"></i> 導航
-                                        </button>
-                                    </div>
+                                    <p class="text-xs text-slate-600 leading-relaxed break-words">
+                                        {{ event.note || '無特別備註' }}
+                                        <span v-if="event.tag" class="ml-1 inline-block text-[10px] bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-400">
+                                            #{{ event.tag }}
+                                        </span>
+                                    </p>
                                 </div>
                             </div>
+
+                            <!-- 3. Right: Actions (Vertical) -->
+                            <div class="flex flex-col gap-3 pt-1 pl-1">
+                                <!-- Expand/Collapse (Placeholder for visual) -->
+                                <button class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
+                                    <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                </button>
+                                
+                                <!-- Map -->
+                                <button @click="openMap(event.locationName || event.title)" class="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center active:scale-90 transition">
+                                    <i data-lucide="navigation" class="w-4 h-4 fill-current"></i>
+                                </button>
+                                
+                                <!-- Edit -->
+                                <button @click.stop="editEvent(event)" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center active:scale-90 transition">
+                                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+
                         </div>
                     </div>
 
                     <!-- Empty State -->
                     <div v-if="currentDayEvents.length === 0" class="text-center py-10 text-slate-400">
                          <p>本日無預設行程</p>
+                         <button @click="forceInit" class="mt-4 text-xs text-teal-600 border border-teal-200 px-3 py-1 rounded-full">重置資料</button>
                     </div>
                 </div>
             </div>
 
             <!-- Floating Add Button -->
-            <button @click="showEventModal=true" class="fixed bottom-24 right-5 w-14 h-14 bg-secondary rounded-full shadow-lg text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-30">
+            <button @click="openAddModal" class="fixed bottom-24 right-5 w-14 h-14 bg-secondary rounded-full shadow-lg text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-30">
                 <i data-lucide="plus" class="w-7 h-7"></i>
             </button>
         </div>
@@ -323,11 +343,37 @@
         <!-- Event Modal -->
         <div v-if="showEventModal" class="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-4 backdrop-blur-sm">
             <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl mb-4 animate-slide-up">
-                <h3 class="font-bold text-lg mb-4">新增行程</h3>
+                <h3 class="font-bold text-lg mb-4">{{ isEditing ? '編輯行程' : '新增行程' }}</h3>
                 <div class="space-y-3">
-                    <input v-model="formEvent.time" type="time" class="input text-center font-bold">
-                    <input v-model="formEvent.title" class="input" placeholder="名稱">
-                    <div class="flex gap-2">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 mb-1">時間</label>
+                            <input v-model="formEvent.time" type="time" class="input text-center font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 mb-1">分類</label>
+                            <select v-model="formEvent.type" class="input bg-white">
+                                <option value="spot">📍 景點</option>
+                                <option value="food">🍴 美食</option>
+                                <option value="hotel">🏨 住宿</option>
+                                <option value="transport">🚗 交通</option>
+                                <option value="note">⚠️ 備註</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">名稱</label>
+                        <input v-model="formEvent.title" class="input" placeholder="名稱">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">地點 (Google 導航用)</label>
+                        <input v-model="formEvent.locationName" placeholder="地點名稱" class="input">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">備註</label>
+                        <textarea v-model="formEvent.note" placeholder="詳細資訊..." class="input h-20 text-sm"></textarea>
+                    </div>
+                    <div class="flex gap-2 mt-4">
                         <button @click="showEventModal=false" class="flex-1 bg-slate-100 py-3 rounded-xl font-bold text-slate-500">取消</button>
                         <button @click="saveEvent" class="flex-1 bg-teal-600 text-white py-3 rounded-xl font-bold">儲存</button>
                     </div>
@@ -347,6 +393,7 @@
                 const currentDateIndex = ref(0);
                 const calcPHP = ref('');
                 const showEventModal = ref(false);
+                const isEditing = ref(false);
                 const firebaseReady = ref(false);
                 
                 // Form
@@ -367,7 +414,7 @@
 
                 // *** 內建資料 (保證顯示) ***
                 const initialItinerary = [
-                    { id: '1-0', date: '2026-02-11', time: '03:15', title: '5J311 飛往馬尼拉', locationName: 'TPE T1 -> MNL T3', type: 'transport', tag: '轉機', lat: 14.512, lng: 121.015 },
+                    { id: '1-0', date: '2026-02-11', time: '03:15', title: '5J311 飛往馬尼拉', locationName: 'TPE T1 -> MNL T3', type: 'transport', tag: '轉機', lat: 14.512, lng: 121.015, note: '轉機需領行李，重掛。' },
                     { id: '1-1', date: '2026-02-11', time: '05:45', title: '抵達馬尼拉 T3', locationName: 'MNL T3', type: 'note', tag: '需領行李', lat: 14.512, lng: 121.015 },
                     { id: '1-1-b', date: '2026-02-11', time: '07:00', title: '機場早餐', locationName: 'MNL T3 美食街', type: 'food', tag: 'Jollibee', lat: 14.512, lng: 121.015 },
                     { id: '1-2', date: '2026-02-11', time: '10:50', title: '5J585 飛往宿霧', locationName: 'MNL T3 -> CEB', type: 'transport' },
@@ -449,8 +496,28 @@
                     if(tabId === 'map') nextTick(() => { if(!map) initMap(); else { map.invalidateSize(); updateMapMarkers(); } });
                 };
 
+                const openAddModal = () => {
+                    isEditing.value = false;
+                    formEvent.value = {
+                        date: tripDays[currentDateIndex.value].date,
+                        time: '12:00', type: 'spot', title: '', locationName: '', note: ''
+                    };
+                    showEventModal.value = true;
+                };
+
+                const editEvent = (event) => {
+                    isEditing.value = true;
+                    formEvent.value = { ...event };
+                    showEventModal.value = true;
+                };
+
                 const saveEvent = () => {
-                    events.value.push({...formEvent.value, id: Date.now(), date: tripDays[currentDateIndex.value].date});
+                    if (isEditing.value) {
+                         const idx = events.value.findIndex(e => e.id === formEvent.value.id);
+                         if (idx !== -1) events.value[idx] = { ...formEvent.value };
+                    } else {
+                         events.value.push({...formEvent.value, id: Date.now(), date: tripDays[currentDateIndex.value].date});
+                    }
                     showEventModal.value = false;
                 };
 
@@ -489,6 +556,7 @@
 
                 const getCategoryName = (c) => ({ spot: '景點', food: '美食', hotel: '住宿', transport: '交通', note: '筆記' })[c] || '其他';
                 const getCategoryColor = (c) => ({ spot: 'bg-teal-500', food: 'bg-amber-400', hotel: 'bg-indigo-500', transport: 'bg-blue-500', note: 'bg-slate-400' })[c] || 'bg-slate-400';
+                const getCategoryIcon = (c) => ({ spot: 'camera', food: 'utensils', hotel: 'bed', transport: 'car', note: 'pen-tool' })[c] || 'circle';
                 const getCategoryBadgeStyle = (c) => ({
                     spot: 'bg-teal-50 text-teal-600 border-teal-200',
                     food: 'bg-amber-50 text-amber-600 border-amber-200',
@@ -515,9 +583,9 @@
                     currentTab, activePopup, currentDateIndex, currentDayEvents, tripDays,
                     showEventModal, formEvent,
                     changeDate, openMap, switchTab,
-                    saveEvent, deleteEvent,
-                    initMap, locateUser, fitBounds,
-                    getCategoryName, getCategoryColor, getCategoryBadgeStyle,
+                    saveEvent, deleteEvent, isEditing,
+                    initMap, locateUser, fitBounds, openAddModal, editEvent,
+                    getCategoryName, getCategoryColor, getCategoryBadgeStyle, getCategoryIcon,
                     currentWeather, currentCity, firebaseReady: ref(true)
                 };
             }
