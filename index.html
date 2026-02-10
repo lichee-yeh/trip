@@ -1,4 +1,4 @@
-<!-- Version: v31.0 (Map Back Button, Local Storage Persistence, High Z-Index Nav) -->
+<!-- Version: v34.0 (Restored Shopping/Expense UI, Centered Modals) -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -16,10 +16,11 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- Firebase SDK (背景備份) -->
+    <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        
         const firebaseConfig = {
             apiKey: "AIzaSyA1JHrkPbANS-g7X8OudpD0w819ZXA8-7A",
             authDomain: "family-trip-2026-1c43d.firebaseapp.com",
@@ -29,11 +30,13 @@
             appId: "1:157512457202:web:b211df6298c0057e62e96b",
             measurementId: "G-LDQW10LQZ4"
         };
+
         try {
             const app = initializeApp(firebaseConfig);
             window.db = getFirestore(app);
-            window.fireOps = { collection, addDoc };
-        } catch(e) { console.log("Offline mode"); }
+            window.fireOps = { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch };
+            setTimeout(() => window.dispatchEvent(new Event('firebase-ready')), 800);
+        } catch (e) { console.log("Offline mode"); }
     </script>
 
     <script>
@@ -51,14 +54,13 @@
         body { background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         
-        /* 底部導航欄 - 超高層級 */
+        /* 底部導航欄 */
         .bottom-nav {
             position: fixed; bottom: 0; left: 0; right: 0;
             background: white; border-top: 1px solid #E2E8F0;
             padding-bottom: env(safe-area-inset-bottom);
             height: calc(60px + env(safe-area-inset-bottom));
-            z-index: 9999; /* 確保在最上層 */
-            display: flex; justify-content: space-around; align-items: center;
+            z-index: 50; display: flex; justify-content: space-around; align-items: center;
         }
 
         .date-btn-active { background-color: #0D9488; color: white; transform: scale(1.05); border: none; box-shadow: 0 4px 10px rgba(13,148,136,0.3); }
@@ -75,7 +77,6 @@
             background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.6) 100%);
         }
         
-        /* 地圖容器 */
         #map-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 0; background-color: #e5e7eb; }
         .custom-div-icon {
             background: #0D9488; color: white; border-radius: 50%; border: 3px solid white;
@@ -165,7 +166,7 @@
                                 <span class="text-xs font-black text-slate-500 font-en">{{ event.time }}</span>
                             </div>
 
-                            <div class="bg-white rounded-2xl p-4 shadow-card border border-slate-100 flex-1 min-w-0 active:scale-98 transition-transform" @click="openGoogleMap(event)">
+                            <div class="bg-white rounded-2xl p-4 shadow-card border border-slate-100 flex-1 min-w-0 active:scale-98 transition-transform" @click="openMap(event)">
                                 <div class="flex justify-between items-start">
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-2 mb-1">
@@ -191,8 +192,7 @@
             </div>
 
             <!-- 2. Map Tab -->
-            <div v-if="currentTab === 'map'" class="absolute inset-0 z-30 bg-slate-100 flex flex-col h-full w-full">
-                <!-- Back Button for Map -->
+            <div v-show="currentTab === 'map'" class="absolute inset-0 z-30 bg-slate-100 flex flex-col h-full w-full">
                 <button @click="switchTab('schedule')" class="absolute top-6 left-6 w-10 h-10 bg-white rounded-full shadow-lg z-[500] flex items-center justify-center text-slate-700 border border-slate-100">
                     <i data-lucide="arrow-left" class="w-6 h-6"></i>
                 </button>
@@ -210,12 +210,11 @@
 
         </main>
 
-        <!-- Floating Add Button -->
+        <!-- FAB -->
         <button v-if="currentTab==='schedule'" @click="openAddModal" class="fixed bottom-24 right-6 w-14 h-14 bg-secondary rounded-full shadow-lg text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-[60]">
             <i data-lucide="plus" class="w-8 h-8"></i>
         </button>
 
-        <!-- Bottom Navigation -->
         <nav class="bottom-nav shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
             <button @click="switchTab('schedule')" class="flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform" :class="currentTab === 'schedule' ? 'text-teal-600' : 'text-slate-400'">
                 <i data-lucide="calendar-days" class="w-6 h-6 mb-1" :class="{'fill-teal-100': currentTab === 'schedule'}"></i>
@@ -227,44 +226,85 @@
             </button>
         </nav>
 
-        <!-- Popups (Info/Shopping/Expenses) -->
+        <!-- Popups -->
         <transition name="slide-up">
             <div v-if="activePopup" class="fixed inset-0 z-[60] bg-slate-100 flex flex-col h-full w-full">
                 <div class="bg-white px-5 pt-12 pb-3 flex justify-between items-center shadow-sm shrink-0">
                     <h2 class="text-xl font-black text-slate-800">{{ activePopup === 'info' ? '旅遊資訊' : activePopup === 'shopping' ? '購物清單' : '旅費記錄' }}</h2>
                     <button @click="closePopup" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"><i data-lucide="x" class="w-6 h-6"></i></button>
                 </div>
-                <!-- Popup Content... -->
-                <div class="flex-1 overflow-y-auto p-4 space-y-4">
-                     <!-- Info -->
-                    <div v-if="activePopup === 'info'">
-                        <div class="bg-teal-600 rounded-3xl p-6 text-white shadow-xl mb-4">
-                            <h3 class="font-bold mb-4 flex items-center"><i data-lucide="coins" class="w-5 h-5 mr-2"></i> 匯率換算</h3>
-                            <div class="flex items-center gap-3">
-                                <div class="flex-1"><label class="text-[10px] opacity-70 block mb-1">PHP</label><input type="number" v-model="calcPHP" class="w-full bg-white/20 border-0 rounded-xl text-2xl font-mono font-bold p-3 text-white outline-none"></div>
-                                <i data-lucide="arrow-right" class="w-6 h-6 text-white/50 mt-6"></i>
-                                <div class="flex-1"><label class="text-[10px] opacity-70 block mb-1">TWD</label><div class="text-2xl font-mono font-bold p-3">$ {{ calcTWD }}</div></div>
-                            </div>
+                
+                <!-- Info Content -->
+                <div v-if="activePopup === 'info'" class="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div class="bg-teal-600 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
+                        <h3 class="font-bold mb-4 flex items-center"><i data-lucide="coins" class="w-5 h-5 mr-2"></i> 匯率換算</h3>
+                        <div class="flex items-center gap-3">
+                            <div class="flex-1"><label class="text-[10px] opacity-70 block mb-1">PHP</label><input type="number" v-model="calcPHP" class="w-full bg-white/20 border-0 rounded-xl text-2xl font-mono font-bold p-3 text-white outline-none" placeholder="0"></div>
+                            <i data-lucide="arrow-right" class="w-6 h-6 text-white/50 mt-6"></i>
+                            <div class="flex-1"><label class="text-[10px] opacity-70 block mb-1">TWD</label><div class="text-2xl font-mono font-bold p-3">$ {{ calcTWD }}</div></div>
                         </div>
                     </div>
-                    <!-- Placeholders for others -->
-                    <div v-else class="text-center py-10 text-slate-400"><p>本地模式暫存區</p></div>
+                </div>
+
+                <!-- Shopping List -->
+                <div v-if="activePopup === 'shopping'" class="flex-1 overflow-y-auto p-4 bg-slate-50">
+                    <div class="grid grid-cols-2 gap-3 mb-24">
+                        <div v-for="(item, idx) in shoppingList" :key="idx" class="bg-white rounded-2xl p-3 shadow-sm relative">
+                             <button @click="deleteItem('shopping', idx)" class="absolute top-2 right-2 w-6 h-6 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500"><i data-lucide="x" class="w-3 h-3"></i></button>
+                             <div class="font-bold text-slate-700 text-sm truncate mt-2">{{ item.name }}</div>
+                        </div>
+                    </div>
+                    <!-- Add Box (Fixed Bottom) -->
+                    <div class="fixed bottom-0 left-0 right-0 bg-white p-4 pb-8 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] border-t border-slate-100 z-10">
+                        <div class="flex gap-2 max-w-md mx-auto">
+                            <input v-model="formShopping.name" class="input flex-1" placeholder="輸入商品名稱...">
+                            <button @click="addShopping" class="bg-teal-600 text-white px-4 py-2 rounded-xl font-bold whitespace-nowrap">新增</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expense List -->
+                <div v-if="activePopup === 'expenses'" class="flex-1 overflow-y-auto p-4 bg-slate-50">
+                    <div class="bg-slate-800 rounded-3xl p-6 text-white shadow-xl shadow-slate-300 mb-6 relative overflow-hidden">
+                        <div class="relative z-10">
+                            <div class="text-xs text-slate-400 uppercase tracking-widest mb-1">Total Expenses</div>
+                            <div class="text-4xl font-mono font-bold">₱ {{ totalExpense }}</div>
+                            <div class="text-xs text-slate-500 mt-2">約 NT$ {{ (totalExpense * 0.56).toFixed(0) }}</div>
+                        </div>
+                    </div>
+                    <div class="space-y-3 mb-24">
+                         <div v-for="(ex, idx) in expenseList" :key="idx" class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center text-lg"><i data-lucide="coins" class="w-5 h-5"></i></div>
+                                <div><div class="font-bold text-slate-700 text-sm">{{ ex.name }}</div><div class="text-[10px] text-slate-400">{{ ex.date }}</div></div>
+                            </div>
+                            <div class="text-right"><div class="font-bold font-mono text-slate-700">₱{{ ex.amount }}</div><button @click="deleteItem('expenses', idx)" class="text-[10px] text-red-300">刪除</button></div>
+                        </div>
+                    </div>
+                     <!-- Add Box (Fixed Bottom) -->
+                     <div class="fixed bottom-0 left-0 right-0 bg-white p-4 pb-8 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] border-t border-slate-100 z-10">
+                        <div class="flex gap-2 mb-2 max-w-md mx-auto">
+                             <input v-model="formExpense.name" class="input flex-1" placeholder="項目">
+                             <input v-model.number="formExpense.amount" class="input w-24 text-center font-bold" placeholder="₱金額" type="number">
+                        </div>
+                        <button @click="addExpense" class="w-full bg-teal-600 text-white px-4 py-3 rounded-xl font-bold max-w-md mx-auto block">新增記帳</button>
+                    </div>
                 </div>
             </div>
         </transition>
 
-        <!-- Event Modal -->
-        <div v-if="showEventModal" class="fixed inset-0 bg-black/50 z-[70] flex items-end justify-center p-4 backdrop-blur-sm">
-            <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl mb-4 animate-slide-up">
+        <!-- Event Modal (Centered) -->
+        <div v-if="showEventModal" class="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl mb-4 animate-slide-up transform transition-all">
                 <h3 class="font-bold text-lg mb-4">新增行程</h3>
                 <div class="space-y-3">
                     <div class="grid grid-cols-2 gap-3">
-                        <input v-model="formEvent.time" type="time" class="input text-center font-bold">
-                        <select v-model="formEvent.type" class="input bg-white"><option value="spot">📍 景點</option><option value="food">🍴 美食</option><option value="hotel">🏨 住宿</option><option value="transport">🚗 交通</option><option value="note">⚠️ 備註</option></select>
+                        <div><label class="block text-xs font-bold text-slate-400 mb-1">時間</label><input v-model="formEvent.time" type="time" class="input text-center font-bold"></div>
+                        <div><label class="block text-xs font-bold text-slate-400 mb-1">分類</label><select v-model="formEvent.type" class="input bg-white"><option value="spot">📍 景點</option><option value="food">🍴 美食</option><option value="hotel">🏨 住宿</option><option value="transport">🚗 交通</option><option value="note">⚠️ 備註</option></select></div>
                     </div>
                     <input v-model="formEvent.title" class="input" placeholder="名稱">
                     <input v-model="formEvent.locationName" placeholder="地點名稱" class="input">
-                    <input v-model="formEvent.address" placeholder="地址 (Google 導航)" class="input">
+                    <input v-model="formEvent.address" placeholder="地址 (Google 導航用)" class="input">
                     <div class="flex gap-2 mt-4">
                         <button @click="showEventModal=false" class="flex-1 bg-slate-100 py-3 rounded-xl font-bold text-slate-500">取消</button>
                         <button @click="saveEvent" class="flex-1 bg-teal-600 text-white py-3 rounded-xl font-bold">儲存</button>
@@ -280,13 +320,15 @@
 
         createApp({
             setup() {
-                const STORAGE_KEY = 'remi_trip_v31_stable';
+                const STORAGE_KEY = 'remi_trip_v34_data';
                 const currentTab = ref('schedule');
                 const activePopup = ref(null);
                 const currentDateIndex = ref(0);
                 const calcPHP = ref('');
                 const showEventModal = ref(false);
                 const formEvent = ref({ time: '12:00', title: '', type: 'food', address: '' });
+                const formShopping = ref({ name: '' });
+                const formExpense = ref({ name: '', amount: null, date: new Date().toISOString().split('T')[0] });
 
                 const tripDays = [
                     { date: '2026-02-11', dayShort: '週三', dayNum: '11', highlight: '抵達宿霧', dateShort: '2/11', location: '宿霧市區', image: 'https://images.unsplash.com/photo-1595130456565-5c1a7044033b?q=80&w=800&auto=format&fit=crop' },
@@ -321,7 +363,8 @@
                     { id: '4-2', date: '2026-02-14', time: '11:00', title: 'Hinagdanan Cave', locationName: '鐘乳石洞', type: 'spot', note: 'No Swim', lat: 9.613, lng: 123.799 },
                     { id: '4-3', date: '2026-02-14', time: '12:00', title: '午餐 Ubeco', locationName: '韓系網美店', type: 'food', tag: '指定', lat: 9.6056, lng: 123.7742 },
                     { id: '4-5', date: '2026-02-14', time: '18:00', title: '晚餐 Mist', locationName: '森林系餐廳', type: 'food', tag: '推薦', lat: 9.554, lng: 123.766 },
-                    { id: '5-0', date: '2026-02-15', time: '06:00', title: '跳島一日遊', locationName: 'Balicasag', type: 'spot', tag: '包船', lat: 9.518, lng: 123.680 },
+                    { id: '5-0', date: '2026-02-15', time: '05:30', title: '簡易早餐', locationName: '餐盒', type: 'food', tag: '早起', lat: 9.546, lng: 123.774 },
+                    { id: '5-1', date: '2026-02-15', time: '06:00', title: '跳島一日遊', locationName: 'Balicasag (海龜)', type: 'spot', tag: '包船', lat: 9.518, lng: 123.680 },
                     { id: '5-2', date: '2026-02-15', time: '11:00', title: 'Virgin Island', locationName: '處女島', type: 'spot', lat: 9.556, lng: 123.730 },
                     { id: '5-4', date: '2026-02-15', time: '14:30', title: 'Check in Villa', locationName: 'Villa Kalachuchi (Danao)', type: 'hotel', note: '無早餐有廚房', lat: 9.556, lng: 123.760 },
                     { id: '5-5', date: '2026-02-15', time: '18:00', title: '晚餐 Luna Rossa', locationName: '素食義大利菜', type: 'food', tag: '推薦', lat: 9.553, lng: 123.762 },
@@ -344,11 +387,30 @@
 
                 const loadFromLocal = () => {
                     const saved = localStorage.getItem(STORAGE_KEY);
-                    return saved ? JSON.parse(saved) : [...initialItinerary];
+                    return saved ? JSON.parse(saved) : { events: [...initialItinerary], shopping: [], expenses: [] };
                 };
-                const events = ref(loadFromLocal());
-                const saveToLocal = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(events.value));
-                const resetToDefault = () => { if(confirm('重置？')) { events.value = [...initialItinerary]; saveToLocal(); location.reload(); }};
+                const localData = loadFromLocal();
+                const events = ref(localData.events);
+                const shoppingList = ref(localData.shopping);
+                const expenseList = ref(localData.expenses);
+
+                const saveToLocal = () => {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify({ 
+                        events: events.value,
+                        shopping: shoppingList.value,
+                        expenses: expenseList.value
+                    }));
+                };
+
+                const resetToDefault = () => {
+                    if(confirm('重置？')) { 
+                        events.value = [...initialItinerary]; 
+                        shoppingList.value = [];
+                        expenseList.value = [];
+                        saveToLocal(); 
+                        location.reload(); 
+                    }
+                };
 
                 const currentDayEvents = computed(() => {
                     const targetDate = tripDays[currentDateIndex.value].date;
@@ -359,10 +421,11 @@
                 const currentWeather = computed(() => ({ temp: 30, feels_like: 34, icon: 'sun' }));
                 const currentHeaderImage = computed(() => tripDays[currentDateIndex.value].image);
                 const calcTWD = computed(() => { const v = parseFloat(calcPHP.value); return isNaN(v) ? 0 : Math.round(v * 0.56); });
+                const totalExpense = computed(() => expenseList.value.reduce((sum, item) => sum + Number(item.amount || 0), 0));
 
                 const changeDate = (idx) => currentDateIndex.value = idx;
                 
-                const openGoogleMap = (e) => {
+                const openMap = (e) => {
                     const q = e.address || e.locationName || e.title;
                     if(q) window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`, '_blank');
                 };
@@ -380,10 +443,30 @@
                     showEventModal.value = false; 
                 };
                 
+                const addShopping = () => {
+                    if(!formShopping.value.name) return;
+                    shoppingList.value.push({ ...formShopping.value, id: Date.now() });
+                    formShopping.value = { name: '' };
+                    saveToLocal();
+                };
+
+                const addExpense = () => {
+                    if(!formExpense.value.amount) return;
+                    expenseList.value.push({ ...formExpense.value, id: Date.now(), date: new Date().toISOString().split('T')[0] });
+                    formExpense.value = { name: '', amount: null };
+                    saveToLocal();
+                };
+
+                const deleteItem = (type, idx) => {
+                     if(type === 'shopping') shoppingList.value.splice(idx, 1);
+                     if(type === 'expenses') expenseList.value.splice(idx, 1);
+                     saveToLocal();
+                };
+
                 const deleteEvent = (id) => { if(confirm('確定刪除？')) { events.value = events.value.filter(i => i.id !== id); saveToLocal(); }};
                 const handleImageError = (e) => e.target.src = 'https://images.unsplash.com/photo-1595130456565-5c1a7044033b?q=80&w=800';
 
-                // Map Logic (Force Re-render)
+                // Map Logic (Robust Force Re-render)
                 let map = null;
                 let markersLayer = null;
                 const forceInitMap = () => {
@@ -438,10 +521,12 @@
                 });
 
                 return {
-                    currentTab, activePopup, currentDateIndex, currentDayEvents, tripDays, changeDate, openGoogleMap, switchTab,
+                    currentTab, activePopup, currentDateIndex, currentDayEvents, tripDays, changeDate, openMap, switchTab,
                     saveEvent, deleteEvent, openPopup, closePopup, openAddModal, initMap: forceInitMap, locateUser, fitBounds,
                     getCategoryName, getCategoryColor, getCategoryBadgeStyle, getCategoryIcon, currentWeather, currentCity, currentHeaderImage,
-                    calcPHP, calcTWD, showEventModal, formEvent, handleImageError, resetToDefault
+                    calcPHP, calcTWD, showEventModal, formEvent, handleImageError, resetToDefault,
+                    shoppingList, formShopping, addShopping, deleteItem,
+                    expenseList, formExpense, addExpense, totalExpense
                 };
             }
         }).mount('#app');
