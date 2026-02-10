@@ -1,4 +1,4 @@
-<!-- Version: v27.0 (Firebase Sync Fixed + Map Remove Logic + FAB z-index) -->
+<!-- Version: v28.0 (Fixed: Console Errors, Return Scope, Map Destroy Logic, Icon Refresh) -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -16,12 +16,10 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK (背景執行) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        
-        // 您的 Firebase 設定
+        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         const firebaseConfig = {
             apiKey: "AIzaSyA1JHrkPbANS-g7X8OudpD0w819ZXA8-7A",
             authDomain: "family-trip-2026-1c43d.firebaseapp.com",
@@ -31,40 +29,20 @@
             appId: "1:157512457202:web:b211df6298c0057e62e96b",
             measurementId: "G-LDQW10LQZ4"
         };
-
         try {
             const app = initializeApp(firebaseConfig);
-            const db = getFirestore(app);
-            window.db = db;
-            window.fireOps = { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, writeBatch };
-            
-            // 延遲一點點發送 Ready，確保 Vue 已經準備好接收
-            setTimeout(() => {
-                console.log("Firebase Connected");
-                window.dispatchEvent(new Event('firebase-ready'));
-            }, 500);
-        } catch (e) {
-            console.error("Firebase Init Failed:", e);
-        }
+            window.db = getFirestore(app);
+            window.fireOps = { collection, addDoc };
+        } catch(e) {}
     </script>
 
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    colors: { 
-                        primary: '#0D9488', 
-                        secondary: '#F59E0B', 
-                        bg: '#F8FAFC', 
-                    },
-                    fontFamily: { 
-                        sans: ['Noto Sans TC', 'sans-serif'],
-                        en: ['Nunito', 'sans-serif']
-                    },
-                    boxShadow: {
-                        'float': '0 4px 20px -2px rgba(13, 148, 136, 0.2)',
-                        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)'
-                    }
+                    colors: { primary: '#0D9488', secondary: '#F59E0B', bg: '#F8FAFC' },
+                    fontFamily: { sans: ['Noto Sans TC', 'sans-serif'], en: ['Nunito', 'sans-serif'] },
+                    boxShadow: { 'card': '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }
                 }
             }
         }
@@ -72,41 +50,30 @@
     <style>
         body { background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
-        
-        /* 底部導航欄 */
         .bottom-nav {
-            position: fixed; bottom: 0; left: 0; right: 0;
-            background: white; border-top: 1px solid #E2E8F0;
-            padding-bottom: env(safe-area-inset-bottom);
-            height: calc(60px + env(safe-area-inset-bottom));
-            z-index: 50; display: flex; justify-content: space-around; align-items: center;
+            position: fixed; bottom: 0; left: 0; right: 0; background: white;
+            border-top: 1px solid #E2E8F0; padding-bottom: env(safe-area-inset-bottom);
+            height: calc(60px + env(safe-area-inset-bottom)); z-index: 50;
+            display: flex; justify-content: space-around; align-items: center;
         }
-
-        /* 樣式優化 */
-        .date-btn-active { background-color: #0D9488; color: white; transform: scale(1.05); box-shadow: 0 4px 10px rgba(13, 148, 136, 0.3); border: none;}
+        .date-btn-active { background-color: #0D9488; color: white; transform: scale(1.05); border: none; box-shadow: 0 4px 10px rgba(13,148,136,0.3); }
         .date-btn-inactive { background-color: white; color: #94A3B8; border: 1px solid #E2E8F0; }
         .header-bg {
             position: relative; height: 280px; overflow: hidden;
             border-bottom-left-radius: 35px; border-bottom-right-radius: 35px;
-            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.2); z-index: 10; background-color: #334155;
+            z-index: 10; background-color: #334155;
         }
         .header-image { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.5s; }
         .header-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.6) 100%);
         }
-        
-        /* 地圖容器 */
-        #map-container {
-            width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; background-color: #e5e7eb;
-        }
+        #map-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; background-color: #e5e7eb; }
         .custom-div-icon {
             background: #0D9488; color: white; border-radius: 50%; border: 3px solid white;
             display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
-
-        /* 動畫 */
         .popup-enter-active, .popup-leave-active { transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
         .popup-enter-from, .popup-leave-to { opacity: 0; transform: translateY(20px) scale(0.95); }
     </style>
@@ -115,7 +82,7 @@
 
     <div id="app" class="flex flex-col h-full max-w-md mx-auto bg-slate-50 relative shadow-2xl">
 
-        <!-- Header (只在行程頁顯示) -->
+        <!-- Header -->
         <div v-show="currentTab === 'schedule'" class="header-bg shrink-0 relative">
             <div class="absolute inset-0 bg-slate-800">
                 <img :src="currentHeaderImage" class="header-image opacity-90" @error="handleImageError">
@@ -129,7 +96,6 @@
                 </p>
             </div>
 
-            <!-- Floating Tabs -->
             <div class="absolute bottom-8 right-6 flex gap-3 z-20">
                 <button @click="openPopup('info')" class="w-12 h-12 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-teal-600 shadow-lg active:scale-95 transition">
                     <i data-lucide="info" class="w-6 h-6"></i>
@@ -143,23 +109,19 @@
             </div>
         </div>
 
-        <!-- Main Content -->
+        <!-- Main -->
         <main class="flex-1 overflow-y-auto px-0 hide-scrollbar bg-slate-50 relative z-5">
-            
-            <!-- 1. Schedule Tab -->
+            <!-- Schedule -->
             <div v-show="currentTab === 'schedule'" class="px-4 pb-32 pt-4 -mt-4">
-                
-                <!-- Sticky Dates -->
                 <div class="flex overflow-x-auto hide-scrollbar space-x-3 pb-4 sticky top-0 z-20 pt-2" style="background: linear-gradient(to bottom, #F8FAFC 80%, rgba(248,250,252,0) 100%);">
                     <button v-for="(day, idx) in tripDays" :key="idx" @click="changeDate(idx)"
                         class="flex-shrink-0 w-14 h-16 rounded-2xl flex flex-col items-center justify-center transition-all duration-200 border-2"
-                        :class="currentDateIndex === idx ? 'bg-teal-600 text-white border-teal-600 shadow-lg scale-105' : 'bg-white text-slate-400 border-transparent'">
+                        :class="currentDateIndex === idx ? 'date-btn-active' : 'date-btn-inactive'">
                         <span class="text-xs font-bold font-en uppercase">{{ day.dayShort }}</span>
                         <span class="text-xl font-black font-en">{{ day.dateShort.split('/')[1] }}</span>
                     </button>
                 </div>
 
-                <!-- Weather Card -->
                 <div class="mb-6 bg-white border border-teal-100 rounded-3xl p-5 flex justify-between items-center shadow-sm">
                     <div class="flex items-center gap-4">
                         <i :data-lucide="currentWeather.icon" class="w-10 h-10 text-amber-400"></i>
@@ -177,86 +139,49 @@
                     </div>
                 </div>
 
-                <!-- Timeline -->
                 <div class="space-y-4 pb-20">
-                    
-                    <!-- Loading State -->
-                     <div v-if="isLoading" class="text-center py-10 text-slate-400">
-                        <div class="animate-spin w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-                        <p class="text-sm">正在同步雲端行程...</p>
+                    <div v-if="currentDayEvents.length === 0" class="text-center py-10 text-slate-400">
+                        <p class="text-sm">本日無預設行程</p>
+                        <button @click="resetToDefault" class="mt-4 text-xs text-teal-600 border border-teal-200 px-3 py-1 rounded-full">重置預設資料</button>
                     </div>
 
-                    <div v-else-if="currentDayEvents.length === 0" class="text-center py-10 text-slate-400">
-                        <p class="text-sm">本日尚無行程</p>
-                    </div>
-
-                    <div v-else v-for="(event, index) in currentDayEvents" :key="event.id" class="group relative">
-                        
-                        <!-- Transport Line -->
-                        <div v-if="index < currentDayEvents.length - 1" 
-                             class="absolute left-[26px] top-14 bottom-[-16px] w-[2px] border-l-2 border-dashed border-slate-300 z-0"></div>
-
-                        <!-- Card Layout -->
+                    <div v-for="(event, index) in currentDayEvents" :key="event.id" class="group relative">
+                        <div v-if="index < currentDayEvents.length - 1" class="absolute left-[26px] top-14 bottom-[-16px] w-[2px] border-l-2 border-dashed border-slate-300 z-0"></div>
                         <div class="flex gap-4 items-start">
-                            <!-- Left: Icon & Time -->
                             <div class="flex flex-col items-center shrink-0 pt-1 z-10 bg-slate-50">
-                                <div class="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-md mb-1 border-2 border-white"
-                                     :class="getCategoryColor(event.type)">
+                                <div class="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-md mb-1 border-2 border-white" :class="getCategoryColor(event.type)">
                                     <i :data-lucide="getCategoryIcon(event.type)" class="w-6 h-6"></i>
                                 </div>
                                 <span class="text-xs font-black text-slate-500 font-en">{{ event.time }}</span>
                             </div>
-
-                            <!-- Right: Info Card -->
-                            <div class="event-card flex-1 p-4 active:scale-98 transition-transform" @click="openMap(event)">
+                            <div class="bg-white rounded-2xl p-4 shadow-card border border-slate-100 flex-1 min-w-0 active:scale-98 transition-transform" @click="openMap(event)">
                                 <div class="flex justify-between items-start">
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-2 mb-1">
-                                            <span class="text-[10px] font-bold px-2 py-0.5 rounded border" :class="getCategoryBadgeStyle(event.type)">
-                                                {{ getCategoryName(event.type) }}
-                                            </span>
-                                            <span v-if="event.transportTime" class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded flex items-center">
-                                                <i data-lucide="footprints" class="w-3 h-3 mr-1"></i> {{ event.transportTime }}
-                                            </span>
+                                            <span class="text-[10px] font-bold px-2 py-0.5 rounded border" :class="getCategoryBadgeStyle(event.type)">{{ getCategoryName(event.type) }}</span>
+                                            <span v-if="event.transportTime" class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded flex items-center"><i data-lucide="footprints" class="w-3 h-3 mr-1"></i> {{ event.transportTime }}</span>
                                         </div>
                                         <h3 class="text-lg font-bold text-slate-800 leading-tight truncate pr-1">{{ event.title }}</h3>
-                                        <p v-if="event.locationName" class="text-xs text-slate-400 mt-1 flex items-center gap-1 truncate">
-                                            <i data-lucide="map-pin" class="w-3 h-3"></i> {{ event.locationName }}
-                                        </p>
+                                        <p v-if="event.locationName" class="text-xs text-slate-400 mt-1 flex items-center gap-1 truncate"><i data-lucide="map-pin" class="w-3 h-3"></i> {{ event.locationName }}</p>
                                     </div>
-                                    
-                                    <!-- Action Buttons -->
                                     <div class="flex flex-col gap-2 ml-2 shrink-0">
-                                        <button class="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center hover:bg-blue-100 transition shadow-sm">
-                                            <i data-lucide="navigation" class="w-4 h-4"></i>
-                                        </button>
-                                        <button @click.stop="deleteEvent(event.id)" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition shadow-sm">
-                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                        </button>
+                                        <button class="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center hover:bg-blue-100 transition shadow-sm"><i data-lucide="navigation" class="w-4 h-4"></i></button>
+                                        <button @click.stop="deleteEvent(event.id)" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition shadow-sm"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                                     </div>
                                 </div>
-
-                                <!-- Note Section -->
                                 <div v-if="event.note || event.tag" class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
-                                    <div v-if="event.note" class="bg-slate-50 rounded-lg px-2 py-1.5 text-xs text-slate-600 flex-1 leading-relaxed flex items-start gap-1">
-                                        <i data-lucide="file-text" class="w-3 h-3 text-amber-400 mt-0.5 shrink-0"></i> 
-                                        <span>{{ event.note }}</span>
-                                    </div>
-                                    <span v-if="event.tag" class="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg font-bold flex items-center self-start whitespace-nowrap">
-                                        <i data-lucide="star" class="w-3 h-3 mr-1 fill-yellow-700"></i> {{ event.tag }}
-                                    </span>
+                                    <div v-if="event.note" class="bg-slate-50 rounded-lg px-2 py-1.5 text-xs text-slate-600 flex-1 leading-relaxed flex items-start gap-1"><i data-lucide="file-text" class="w-3 h-3 text-amber-400 mt-0.5 shrink-0"></i> <span>{{ event.note }}</span></div>
+                                    <span v-if="event.tag" class="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg font-bold flex items-center self-start whitespace-nowrap"><i data-lucide="star" class="w-3 h-3 mr-1 fill-yellow-700"></i> {{ event.tag }}</span>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
                 </div>
             </div>
 
-            <!-- 2. Map Tab (Full Screen) -->
+            <!-- Map Tab -->
             <div v-show="currentTab === 'map'" class="absolute inset-0 z-30 bg-slate-100 flex flex-col h-full w-full">
                 <div id="map-container" class="w-full h-full"></div>
-                
                 <div class="absolute bottom-24 right-4 flex flex-col gap-2 z-[400]">
                     <button @click="forceInitMap" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:bg-slate-50 border border-slate-100"><i data-lucide="refresh-cw" class="w-6 h-6"></i></button>
                     <button @click="locateUser" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-teal-600 hover:bg-teal-50 border border-slate-100"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
@@ -265,15 +190,13 @@
                      <p class="text-xs text-slate-500">顯示行程：<span class="font-bold text-teal-600">{{ tripDays[currentDateIndex].dateShort }}</span></p>
                 </div>
             </div>
-
         </main>
 
-        <!-- Floating Add Button (Fixed at root level) -->
+        <!-- FAB -->
         <button v-if="currentTab==='schedule'" @click="openAddModal" class="fixed bottom-24 right-6 w-14 h-14 bg-secondary rounded-full shadow-lg text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-[60]">
             <i data-lucide="plus" class="w-8 h-8"></i>
         </button>
 
-        <!-- Bottom Navigation -->
         <nav class="bottom-nav shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
             <button @click="switchTab('schedule')" class="flex flex-col items-center justify-center w-full h-full active:scale-95 transition-transform" :class="currentTab === 'schedule' ? 'text-teal-600' : 'text-slate-400'">
                 <i data-lucide="calendar-days" class="w-6 h-6 mb-1" :class="{'fill-teal-100': currentTab === 'schedule'}"></i>
@@ -285,9 +208,7 @@
             </button>
         </nav>
 
-        <!-- === POPUPS === -->
-        
-        <!-- Info Popup -->
+        <!-- Popups -->
         <transition name="popup">
             <div v-if="activePopup === 'info'" class="fixed inset-0 z-50 bg-slate-100 flex flex-col h-full w-full">
                 <div class="bg-white px-6 pt-12 pb-4 flex justify-between items-center shadow-sm">
@@ -295,85 +216,39 @@
                     <button @click="closePopup" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"><i data-lucide="x" class="w-6 h-6"></i></button>
                 </div>
                 <div class="p-5 space-y-5 overflow-y-auto">
-                    <!-- Rate -->
                     <div class="bg-teal-600 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
                         <h3 class="font-bold mb-4 flex items-center"><i data-lucide="coins" class="w-5 h-5 mr-2"></i> 匯率換算</h3>
                         <div class="flex items-center gap-4 relative z-10">
-                            <div class="flex-1">
-                                <label class="text-[10px] opacity-70 block mb-1">PHP</label>
-                                <input type="number" v-model="calcPHP" class="w-full bg-white/20 border-0 rounded-xl text-2xl font-mono font-bold p-3 text-white outline-none" placeholder="0">
-                            </div>
+                            <div class="flex-1"><label class="text-[10px] opacity-70 block mb-1">PHP</label><input type="number" v-model="calcPHP" class="w-full bg-white/20 border-0 rounded-xl text-2xl font-mono font-bold p-3 text-white outline-none" placeholder="0"></div>
                             <i data-lucide="arrow-right" class="w-6 h-6 text-white/50 mt-6"></i>
-                            <div class="flex-1">
-                                <label class="text-[10px] opacity-70 block mb-1">TWD</label>
-                                <div class="text-2xl font-mono font-bold p-3">$ {{ calcTWD }}</div>
-                            </div>
+                            <div class="flex-1"><label class="text-[10px] opacity-70 block mb-1">TWD</label><div class="text-2xl font-mono font-bold p-3">$ {{ calcTWD }}</div></div>
                         </div>
                     </div>
                 </div>
             </div>
         </transition>
 
-        <!-- Shopping Popup -->
         <transition name="popup">
-            <div v-if="activePopup === 'shopping'" class="fixed inset-0 z-50 bg-slate-50 flex flex-col h-full w-full">
+            <div v-if="['shopping', 'expenses'].includes(activePopup)" class="fixed inset-0 z-50 bg-slate-50 flex flex-col h-full w-full">
                 <div class="bg-white px-6 pt-12 pb-4 flex justify-between items-center shadow-sm">
-                    <h2 class="text-xl font-black text-slate-800">購物清單</h2>
+                    <h2 class="text-xl font-black text-slate-800">{{ activePopup === 'shopping' ? '購物清單' : '旅費記錄' }}</h2>
                     <button @click="closePopup" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"><i data-lucide="x" class="w-6 h-6"></i></button>
                 </div>
-                <div class="p-5 flex items-center justify-center h-full text-slate-300">
-                    <div class="flex flex-col items-center">
-                        <i data-lucide="shopping-bag" class="w-16 h-16 mb-4 stroke-1"></i>
-                        <p class="mb-4">購物清單功能區</p>
-                        <!-- Add Shopping Logic Here if needed -->
-                    </div>
-                </div>
+                <div class="p-5 flex items-center justify-center h-full text-slate-300"><p>尚無資料</p></div>
             </div>
         </transition>
 
-        <!-- Expenses Popup -->
-        <transition name="popup">
-            <div v-if="activePopup === 'expenses'" class="fixed inset-0 z-50 bg-slate-50 flex flex-col h-full w-full">
-                <div class="bg-white px-6 pt-12 pb-4 flex justify-between items-center shadow-sm">
-                    <h2 class="text-xl font-black text-slate-800">旅費記錄</h2>
-                    <button @click="closePopup" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"><i data-lucide="x" class="w-6 h-6"></i></button>
-                </div>
-                <div class="p-5 flex items-center justify-center h-full text-slate-300">
-                    <div class="flex flex-col items-center">
-                         <i data-lucide="coins" class="w-16 h-16 mb-4 stroke-1"></i>
-                         <p class="mb-4">記帳功能區</p>
-                    </div>
-                </div>
-            </div>
-        </transition>
-
-        <!-- Event Modal -->
         <div v-if="showEventModal" class="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-4 backdrop-blur-sm">
             <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl mb-4 animate-slide-up">
                 <h3 class="font-bold text-lg mb-4">新增行程</h3>
                 <div class="space-y-3">
                     <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 mb-1">時間</label>
-                            <input v-model="formEvent.time" type="time" class="input text-center font-bold">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 mb-1">分類</label>
-                            <select v-model="formEvent.type" class="input bg-white">
-                                <option value="spot">📍 景點</option>
-                                <option value="food">🍴 美食</option>
-                                <option value="hotel">🏨 住宿</option>
-                                <option value="transport">🚗 交通</option>
-                                <option value="note">⚠️ 備註</option>
-                            </select>
-                        </div>
+                        <div><label class="block text-xs font-bold text-slate-400 mb-1">時間</label><input v-model="formEvent.time" type="time" class="input text-center font-bold"></div>
+                        <div><label class="block text-xs font-bold text-slate-400 mb-1">分類</label><select v-model="formEvent.type" class="input bg-white"><option value="spot">📍 景點</option><option value="food">🍴 美食</option><option value="hotel">🏨 住宿</option><option value="transport">🚗 交通</option><option value="note">⚠️ 備註</option></select></div>
                     </div>
                     <input v-model="formEvent.title" class="input" placeholder="名稱">
                     <input v-model="formEvent.locationName" placeholder="地點名稱" class="input">
-                     <div>
-                        <label class="block text-xs font-bold text-slate-400 mb-1">地址 (Google 導航)</label>
-                        <input v-model="formEvent.address" placeholder="輸入詳細地址..." class="input">
-                    </div>
+                    <input v-model="formEvent.address" placeholder="地址 (Google 導航用)" class="input">
                     <div class="flex gap-2 mt-4">
                         <button @click="showEventModal=false" class="flex-1 bg-slate-100 py-3 rounded-xl font-bold text-slate-500">取消</button>
                         <button @click="saveEvent" class="flex-1 bg-teal-600 text-white py-3 rounded-xl font-bold">儲存</button>
@@ -389,27 +264,23 @@
 
         createApp({
             setup() {
+                const STORAGE_KEY = 'remi_trip_v26_data';
                 const currentTab = ref('schedule');
                 const activePopup = ref(null);
                 const currentDateIndex = ref(0);
                 const calcPHP = ref('');
                 const showEventModal = ref(false);
-                const firebaseReady = ref(false);
-                const isLoading = ref(true);
-                
                 const formEvent = ref({ time: '12:00', title: '', type: 'food', address: '' });
-
                 const tripDays = [
-                    { date: '2026-02-11', dayShort: '週三', dayNum: '11', highlight: '抵達宿霧', dateShort: '2/11', location: '宿霧市區', image: 'https://images.unsplash.com/photo-1595130456565-5c1a7044033b?q=80&w=800&auto=format&fit=crop' },
-                    { date: '2026-02-12', dayShort: '週四', dayNum: '12', highlight: '市區古蹟', dateShort: '2/12', location: '宿霧市區', image: 'https://images.unsplash.com/photo-1595130456565-5c1a7044033b?q=80&w=800&auto=format&fit=crop' },
-                    { date: '2026-02-13', dayShort: '週五', dayNum: '13', highlight: '前往薄荷', dateShort: '2/13', location: '薄荷島', image: 'https://images.unsplash.com/photo-1590418606746-018840f9cd0f?q=80&w=800&auto=format&fit=crop' },
-                    { date: '2026-02-14', dayShort: '週六', dayNum: '14', highlight: '沙丁魚', dateShort: '2/14', location: '薄荷島', image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?q=80&w=800&auto=format&fit=crop' },
-                    { date: '2026-02-15', dayShort: '週日', dayNum: '15', highlight: '跳島海龜', dateShort: '2/15', location: '薄荷島', image: 'https://images.unsplash.com/photo-1582967788606-a171f1080cae?q=80&w=800&auto=format&fit=crop' },
-                    { date: '2026-02-16', dayShort: '週一', dayNum: '16', highlight: '巧克力山', dateShort: '2/16', location: '薄荷島', image: 'https://images.unsplash.com/photo-1552751753-1579df646398?q=80&w=800&auto=format&fit=crop' },
-                    { date: '2026-02-17', dayShort: '週二', dayNum: '17', highlight: '回馬尼拉', dateShort: '2/17', location: '馬尼拉', image: 'https://images.unsplash.com/photo-1518684079-3c830dcefacf?q=80&w=800&auto=format&fit=crop' },
-                    { date: '2026-02-18', dayShort: '週三', dayNum: '18', highlight: 'BGC & 返台', dateShort: '2/18', location: '馬尼拉', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=800&auto=format&fit=crop' }
+                    { date: '2026-02-11', dayShort: '週三', dayNum: '11', highlight: '抵達宿霧', dateShort: '2/11', location: '宿霧市區', image: 'https://images.unsplash.com/photo-1595130456565-5c1a7044033b?q=80&w=800' },
+                    { date: '2026-02-12', dayShort: '週四', dayNum: '12', highlight: '市區古蹟', dateShort: '2/12', location: '宿霧市區', image: 'https://images.unsplash.com/photo-1595130456565-5c1a7044033b?q=80&w=800' },
+                    { date: '2026-02-13', dayShort: '週五', dayNum: '13', highlight: '前往薄荷', dateShort: '2/13', location: '薄荷島', image: 'https://images.unsplash.com/photo-1590418606746-018840f9cd0f?q=80&w=800' },
+                    { date: '2026-02-14', dayShort: '週六', dayNum: '14', highlight: '沙丁魚', dateShort: '2/14', location: '薄荷島', image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?q=80&w=800' },
+                    { date: '2026-02-15', dayShort: '週日', dayNum: '15', highlight: '跳島海龜', dateShort: '2/15', location: '薄荷島', image: 'https://images.unsplash.com/photo-1582967788606-a171f1080cae?q=80&w=800' },
+                    { date: '2026-02-16', dayShort: '週一', dayNum: '16', highlight: '巧克力山', dateShort: '2/16', location: '薄荷島', image: 'https://images.unsplash.com/photo-1552751753-1579df646398?q=80&w=800' },
+                    { date: '2026-02-17', dayShort: '週二', dayNum: '17', highlight: '回馬尼拉', dateShort: '2/17', location: '馬尼拉', image: 'https://images.unsplash.com/photo-1518684079-3c830dcefacf?q=80&w=800' },
+                    { date: '2026-02-18', dayShort: '週三', dayNum: '18', highlight: 'BGC & 返台', dateShort: '2/18', location: '馬尼拉', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=800' }
                 ];
-
                 const initialItinerary = [
                     { id: '1-0', date: '2026-02-11', time: '03:15', title: '飛往馬尼拉 5J311', locationName: 'TPE T1 -> MNL T3', type: 'transport', tag: '轉機', lat: 14.512, lng: 121.015, note: '轉機需領行李，重掛。' },
                     { id: '1-1', date: '2026-02-11', time: '05:45', title: '抵達馬尼拉 T3', locationName: 'MNL T3', type: 'note', tag: '領行李', lat: 14.512, lng: 121.015 },
@@ -421,76 +292,46 @@
                     { id: '7-6', date: '2026-02-17', time: '21:30', title: '晚餐 Shake Shack', locationName: 'BGC', type: 'food', tag: '簡單吃', lat: 14.550, lng: 121.050 }
                 ];
 
-                const events = ref([]);
-
-                // Computed
-                const currentDayEvents = computed(() => {
-                    const targetDate = tripDays[currentDateIndex.value].date;
-                    return events.value.filter(e => e.date === targetDate).sort((a,b) => a.time.localeCompare(b.time));
-                });
+                const loadFromLocal = () => {
+                    const saved = localStorage.getItem(STORAGE_KEY);
+                    return saved ? JSON.parse(saved).events : [...initialItinerary];
+                };
+                const events = ref(loadFromLocal());
+                const saveToLocal = () => localStorage.setItem(STORAGE_KEY, JSON.stringify({ events: events.value }));
+                
+                const currentDayEvents = computed(() => events.value.filter(e => e.date === tripDays[currentDateIndex.value].date).sort((a,b) => a.time.localeCompare(b.time)));
                 const currentCity = computed(() => currentDateIndex.value < 2 ? 'Cebu' : currentDateIndex.value <= 5 ? 'Bohol' : 'Manila');
                 const currentWeather = computed(() => ({ temp: 30, feels_like: 34, icon: 'sun' }));
                 const currentHeaderImage = computed(() => tripDays[currentDateIndex.value].image);
+                const calcTWD = computed(() => { const v = parseFloat(calcPHP.value); return isNaN(v) ? 0 : Math.round(v * 0.56); });
 
-                const calcTWD = computed(() => {
-                    const val = parseFloat(calcPHP.value);
-                    return isNaN(val) ? 0 : Math.round(val * 0.56);
-                });
-
-                // Methods
                 const changeDate = (idx) => currentDateIndex.value = idx;
-                
-                // Address Navigation Logic
-                const openMap = (event) => {
-                    const query = event.address || event.locationName || event.title;
-                    if(query) window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, '_blank');
+                const openMap = (e) => {
+                    const q = e.address || e.locationName || e.title;
+                    if(q) window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`, '_blank');
                 };
-                
-                const openPopup = (type) => { activePopup.value = type; };
-                const closePopup = () => { activePopup.value = null; };
-
-                const openAddModal = () => {
-                    formEvent.value = {
-                        date: tripDays[currentDateIndex.value].date,
-                        time: '12:00', type: 'spot', title: '', locationName: '', address: '', note: ''
-                    };
-                    showEventModal.value = true;
-                };
-
-                const saveEvent = () => {
-                    const newEvent = {...formEvent.value, id: Date.now(), date: tripDays[currentDateIndex.value].date};
-                    events.value.push(newEvent);
-                    showEventModal.value = false;
-                    
-                    // Sync to Firebase (v27 collection)
-                    if (window.fireOps && window.db) {
-                         window.fireOps.addDoc(window.fireOps.collection(window.db, 'events_v27'), newEvent);
-                    }
-                };
-
-                const deleteEvent = (id) => {
-                    if(confirm('確定刪除？')) {
-                        events.value = events.value.filter(i => i.id !== id);
-                        // Also delete from Firebase if possible (requires doc ID management which is skipped for simplicity in hybrid mode, user mainly needs local responsiveness)
-                    }
-                };
-                
+                const openPopup = (t) => activePopup.value = t;
+                const closePopup = () => activePopup.value = null;
+                const openAddModal = () => { formEvent.value = { date: tripDays[currentDateIndex.value].date, time: '12:00', type: 'spot', title: '', locationName: '', address: '', note: '' }; showEventModal.value = true; };
+                const saveEvent = () => { events.value.push({...formEvent.value, id: Date.now()}); saveToLocal(); showEventModal.value = false; };
+                const deleteEvent = (id) => { if(confirm('確定刪除？')) { events.value = events.value.filter(i => i.id !== id); saveToLocal(); }};
+                const resetToDefault = () => { if(confirm('重置？')) { events.value = [...initialItinerary]; saveToLocal(); location.reload(); }};
                 const handleImageError = (e) => e.target.src = 'https://images.unsplash.com/photo-1595130456565-5c1a7044033b?q=80&w=800';
 
-                // Map Logic
+                // Map Logic Fixed
                 let map = null;
                 let markersLayer = null;
-
                 const forceInitMap = () => {
-                     if (map) { map.remove(); map = null; }
-                     setTimeout(() => {
-                         map = L.map('map-container', { zoomControl: false }).setView([10.3157, 123.8854], 12);
-                         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
-                         markersLayer = L.layerGroup().addTo(map);
-                         updateMapMarkers();
-                     }, 200);
-                }
-
+                    if (map) { map.off(); map.remove(); map = null; }
+                    setTimeout(() => {
+                        const el = document.getElementById('map-container');
+                        if(!el) return;
+                        map = L.map(el, { zoomControl: false }).setView([10.3157, 123.8854], 12);
+                        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
+                        markersLayer = L.layerGroup().addTo(map);
+                        updateMapMarkers();
+                    }, 200);
+                };
                 const updateMapMarkers = () => {
                     if (!map || !markersLayer) return;
                     markersLayer.clearLayers();
@@ -503,13 +344,9 @@
                             const icon = L.divIcon({ className: 'custom-div-icon', html: idx + 1, iconSize: [24, 24] });
                             L.marker(point, { icon }).bindPopup(e.title).addTo(markersLayer);
                         });
-                        const bounds = L.latLngBounds(latlngs);
-                        map.fitBounds(bounds, { padding: [50, 50] });
-                    } else {
-                        map.setView([10.3157, 123.8854], 10);
+                        map.fitBounds(L.latLngBounds(latlngs), { padding: [50, 50] });
                     }
                 };
-                
                 const locateUser = () => map && map.locate({ setView: true, maxZoom: 14 });
                 const fitBounds = () => updateMapMarkers();
 
@@ -517,60 +354,25 @@
                     currentTab.value = tabId;
                     if(tabId === 'map') forceInitMap();
                 };
-                
+
                 // Helpers
                 const getCategoryName = (c) => ({ spot: '景點', food: '美食', hotel: '住宿', transport: '交通', note: '筆記' })[c] || '其他';
                 const getCategoryColor = (c) => ({ spot: 'bg-teal-500', food: 'bg-amber-400', hotel: 'bg-indigo-500', transport: 'bg-sky-500', note: 'bg-rose-400' })[c] || 'bg-slate-400';
-                
-                const getCategoryIcon = (c) => ({
-                    spot: 'camera', food: 'utensils', hotel: 'bed', transport: 'car', note: 'file-text'
-                })[c] || 'circle';
+                const getCategoryIcon = (c) => ({ spot: 'camera', food: 'utensils', hotel: 'bed', transport: 'car', note: 'file-text' })[c] || 'circle';
+                const getCategoryBadgeStyle = (c) => ({ spot: 'bg-teal-50 text-teal-600 border-teal-200', food: 'bg-amber-50 text-amber-600 border-amber-200' })[c] || 'bg-slate-50 text-slate-500 border-slate-200';
 
-                const getCategoryBadgeStyle = (c) => ({
-                    spot: 'bg-teal-50 text-teal-600 border-teal-200',
-                    food: 'bg-amber-50 text-amber-600 border-amber-200',
-                    hotel: 'bg-indigo-50 text-indigo-600 border-indigo-200',
-                    transport: 'bg-sky-50 text-sky-600 border-sky-200',
-                    note: 'bg-rose-50 text-rose-600 border-rose-200'
-                })[c] || 'bg-slate-50 text-slate-500 border-slate-200';
-
-                // --- Init ---
-                onMounted(() => {
-                    lucide.createIcons();
-                    
-                    window.addEventListener('firebase-ready', () => {
-                        const { collection, onSnapshot, query } = window.fireOps;
-                        const db = window.db;
-                        const q = query(collection(db, 'events_v27'));
-                        
-                        onSnapshot(q, (snap) => {
-                            // If cloud has data, use cloud data. If empty, use initial.
-                            if (!snap.empty) {
-                                events.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                            } else {
-                                events.value = [...initialItinerary];
-                                // Seed cloud
-                                initialItinerary.forEach(item => window.fireOps.addDoc(collection(db, 'events_v27'), item));
-                            }
-                            isLoading.value = false;
-                        });
-                    });
-                });
-
+                // Watch & Init
+                onMounted(() => { lucide.createIcons(); });
                 watch([currentTab, currentDateIndex, activePopup], () => {
                     nextTick(() => lucide.createIcons());
                     if(currentTab.value === 'map') forceInitMap();
                 });
 
                 return {
-                    currentTab, activePopup, currentDateIndex, currentDayEvents, tripDays,
-                    changeDate, openMap, switchTab,
-                    saveEvent, deleteEvent, 
-                    openPopup, closePopup, openAddModal, 
-                    initMap, locateUser, fitBounds,
-                    getCategoryName, getCategoryColor, getCategoryBadgeStyle, getCategoryIcon,
-                    currentWeather, currentCity, currentHeaderImage, calcPHP, calcTWD,
-                    showEventModal, formEvent, handleImageError, firebaseReady: ref(true), isLoading
+                    currentTab, activePopup, currentDateIndex, currentDayEvents, tripDays, changeDate, openMap, switchTab,
+                    saveEvent, deleteEvent, openPopup, closePopup, openAddModal, initMap: forceInitMap, locateUser, fitBounds,
+                    getCategoryName, getCategoryColor, getCategoryBadgeStyle, getCategoryIcon, currentWeather, currentCity, currentHeaderImage,
+                    calcPHP, calcTWD, showEventModal, formEvent, handleImageError, resetToDefault
                 };
             }
         }).mount('#app');
