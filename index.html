@@ -1,9 +1,10 @@
+<!-- Version: v20.0 (Fixed: Images, FAB Z-Index, Map Rendering) -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Remi's 2026 Trip v19.0</title>
+    <title>Remi's 2026 Trip</title>
     
     <!-- 核心庫 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -46,8 +47,8 @@
             theme: {
                 extend: {
                     colors: { 
-                        primary: '#0D9488', // Teal-600
-                        secondary: '#F59E0B', // Amber-500
+                        primary: '#0D9488', 
+                        secondary: '#F59E0B', 
                         bg: '#F8FAFC', 
                     },
                     fontFamily: { 
@@ -77,7 +78,7 @@
 
         /* 樣式優化 */
         .date-btn-active { background-color: #0D9488; color: white; transform: scale(1.05); box-shadow: 0 4px 10px rgba(13, 148, 136, 0.3); border: none;}
-        .date-btn-inactive { background-color: rgba(255,255,255,0.9); color: #64748B; border: 1px solid rgba(255,255,255,0.5); backdrop-filter: blur(4px); }
+        .date-btn-inactive { background-color: white; color: #94A3B8; border: 1px solid #E2E8F0; }
         .boarding-pass { background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%); color: white; position: relative; border-radius: 16px; }
         
         /* Header 圖片背景 */
@@ -116,7 +117,7 @@
             position: absolute;
             top: 0;
             left: 0;
-            z-index: 1;
+            z-index: 0; /* 修正 z-index 確保在控制項下方 */
             background-color: #e5e7eb;
         }
 
@@ -138,16 +139,13 @@
 </head>
 <body class="h-screen flex flex-col font-sans text-slate-700 overflow-hidden bg-slate-50">
 
-    <!-- Version Label -->
-    <div class="fixed top-0 left-0 bg-red-600 text-white text-[10px] font-bold px-3 py-1.5 z-[9999] rounded-br-lg shadow-md font-mono">v19.0</div>
-
     <div id="app" class="flex flex-col h-full max-w-md mx-auto bg-slate-50 relative shadow-2xl">
 
         <!-- Header (只在行程頁顯示) -->
         <div v-show="currentTab === 'schedule'" class="header-bg shrink-0 relative">
             <div class="absolute inset-0 bg-slate-800">
                 <!-- 動態圖片綁定 -->
-                <img :src="currentHeaderImage" class="header-image opacity-90">
+                <img :src="currentHeaderImage" class="header-image opacity-90" @error="handleImageError">
             </div>
             <div class="header-overlay"></div>
             
@@ -291,8 +289,8 @@
 
         </main>
 
-        <!-- Floating Add Button -->
-        <button v-if="currentTab==='schedule'" @click="openAddModal" class="fixed bottom-24 right-6 w-14 h-14 bg-secondary rounded-full shadow-lg text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-30">
+        <!-- Floating Add Button (Fixed Z-Index & Position) -->
+        <button v-if="currentTab==='schedule'" @click="showEventModal=true" class="fixed bottom-24 right-6 w-14 h-14 bg-secondary rounded-full shadow-lg text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-50">
             <i data-lucide="plus" class="w-8 h-8"></i>
         </button>
 
@@ -312,7 +310,7 @@
         
         <!-- Info Popup -->
         <transition name="popup">
-            <div v-if="activePopup === 'info'" class="fixed inset-0 z-50 bg-slate-50 flex flex-col h-full w-full">
+            <div v-if="activePopup === 'info'" class="fixed inset-0 z-50 bg-slate-100 flex flex-col h-full w-full">
                 <div class="bg-white px-6 pt-12 pb-4 flex justify-between items-center shadow-sm">
                     <h2 class="text-xl font-black text-slate-800">旅遊資訊</h2>
                     <button @click="activePopup = null" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"><i data-lucide="x" class="w-6 h-6"></i></button>
@@ -432,15 +430,16 @@
                 // Form
                 const formEvent = ref({ time: '12:00', title: '', locationName: '', type: 'food', tag: '', lat: null, lng: null });
 
+                // Updated Images with High Quality Source
                 const tripDays = [
-                    { date: '2026-02-11', dayShort: '週三', dayNum: '11', highlight: '抵達宿霧', dateShort: '2/11', location: '宿霧市區', image: 'https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?q=80&w=800' },
-                    { date: '2026-02-12', dayShort: '週四', dayNum: '12', highlight: '市區古蹟', dateShort: '2/12', location: '宿霧市區', image: 'https://images.unsplash.com/photo-1595130456565-5c1a7044033b?q=80&w=800' },
-                    { date: '2026-02-13', dayShort: '週五', dayNum: '13', highlight: '前往薄荷', dateShort: '2/13', location: '薄荷島', image: 'https://images.unsplash.com/photo-1590418606746-018840f9cd0f?q=80&w=800' },
-                    { date: '2026-02-14', dayShort: '週六', dayNum: '14', highlight: '沙丁魚', dateShort: '2/14', location: '薄荷島', image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?q=80&w=800' },
-                    { date: '2026-02-15', dayShort: '週日', dayNum: '15', highlight: '跳島海龜', dateShort: '2/15', location: '薄荷島', image: 'https://images.unsplash.com/photo-1582967788606-a171f1080cae?q=80&w=800' },
-                    { date: '2026-02-16', dayShort: '週一', dayNum: '16', highlight: '巧克力山', dateShort: '2/16', location: '薄荷島', image: 'https://images.unsplash.com/photo-1552751753-1579df646398?q=80&w=800' },
-                    { date: '2026-02-17', dayShort: '週二', dayNum: '17', highlight: '回馬尼拉', dateShort: '2/17', location: '馬尼拉', image: 'https://images.unsplash.com/photo-1518684079-3c830dcefacf?q=80&w=800' },
-                    { date: '2026-02-18', dayShort: '週三', dayNum: '18', highlight: 'BGC & 返台', dateShort: '2/18', location: '馬尼拉', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=800' }
+                    { date: '2026-02-11', dayShort: '週三', dayNum: '11', highlight: '抵達宿霧', dateShort: '2/11', location: '宿霧市區', image: 'https://images.unsplash.com/photo-1595130456565-5c1a7044033b?q=80&w=800&auto=format&fit=crop' },
+                    { date: '2026-02-12', dayShort: '週四', dayNum: '12', highlight: '市區古蹟', dateShort: '2/12', location: '宿霧市區', image: 'https://images.unsplash.com/photo-1595130456565-5c1a7044033b?q=80&w=800&auto=format&fit=crop' },
+                    { date: '2026-02-13', dayShort: '週五', dayNum: '13', highlight: '前往薄荷', dateShort: '2/13', location: '薄荷島', image: 'https://images.unsplash.com/photo-1590418606746-018840f9cd0f?q=80&w=800&auto=format&fit=crop' },
+                    { date: '2026-02-14', dayShort: '週六', dayNum: '14', highlight: '沙丁魚', dateShort: '2/14', location: '薄荷島', image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?q=80&w=800&auto=format&fit=crop' },
+                    { date: '2026-02-15', dayShort: '週日', dayNum: '15', highlight: '跳島海龜', dateShort: '2/15', location: '薄荷島', image: 'https://images.unsplash.com/photo-1582967788606-a171f1080cae?q=80&w=800&auto=format&fit=crop' },
+                    { date: '2026-02-16', dayShort: '週一', dayNum: '16', highlight: '巧克力山', dateShort: '2/16', location: '薄荷島', image: 'https://images.unsplash.com/photo-1552751753-1579df646398?q=80&w=800&auto=format&fit=crop' },
+                    { date: '2026-02-17', dayShort: '週二', dayNum: '17', highlight: '回馬尼拉', dateShort: '2/17', location: '馬尼拉', image: 'https://images.unsplash.com/photo-1518684079-3c830dcefacf?q=80&w=800&auto=format&fit=crop' },
+                    { date: '2026-02-18', dayShort: '週三', dayNum: '18', highlight: 'BGC & 返台', dateShort: '2/18', location: '馬尼拉', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=800&auto=format&fit=crop' }
                 ];
 
                 // *** 內建資料 (核心數據) ***
@@ -514,14 +513,6 @@
                 const changeDate = (idx) => currentDateIndex.value = idx;
                 const openMap = (q) => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`, '_blank');
                 
-                const openAddModal = () => {
-                    formEvent.value = {
-                        date: tripDays[currentDateIndex.value].date,
-                        time: '12:00', type: 'spot', title: '', locationName: '', note: ''
-                    };
-                    showEventModal.value = true;
-                };
-
                 const saveEvent = () => {
                     events.value.push({...formEvent.value, id: Date.now(), date: tripDays[currentDateIndex.value].date});
                     showEventModal.value = false;
@@ -537,6 +528,10 @@
                 };
 
                 const forceInit = () => window.location.reload();
+                
+                const handleImageError = (e) => {
+                    e.target.src = 'https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?q=80&w=800'; // Fallback to Cebu
+                };
 
                 // Map Logic (Fixed initialization)
                 let map = null;
@@ -556,13 +551,11 @@
                 const updateMapMarkers = () => {
                     if (!map || !markersLayer) return;
                     markersLayer.clearLayers();
-                    const dayEvents = events.value.filter(e => e.lat && e.lng); // Show all markers or just current day? Let's show all for overview
-                    // Actually, showing current day markers makes more sense for context
-                    const currentDayEvts = events.value.filter(e => e.date === tripDays[currentDateIndex.value].date && e.lat && e.lng);
+                    const dayEvents = events.value.filter(e => e.date === tripDays[currentDateIndex.value].date && e.lat && e.lng);
                     
-                    if (currentDayEvts.length > 0) {
+                    if (dayEvents.length > 0) {
                         const latlngs = [];
-                        currentDayEvts.forEach((e, idx) => {
+                        dayEvents.forEach((e, idx) => {
                             const point = [e.lat, e.lng];
                             latlngs.push(point);
                             const icon = L.divIcon({ className: 'custom-div-icon', html: idx + 1, iconSize: [24, 24] });
@@ -571,7 +564,7 @@
                         const bounds = L.latLngBounds(latlngs);
                         map.fitBounds(bounds, { padding: [50, 50] });
                     } else {
-                        // Fallback view
+                        // Default fallback view if no points for the day
                         map.setView([10.3157, 123.8854], 10);
                     }
                 };
@@ -582,14 +575,23 @@
                 const switchTab = (tabId) => {
                     currentTab.value = tabId;
                     if(tabId === 'map') {
-                        nextTick(() => {
+                        setTimeout(() => {
                             if(!map) initMap();
-                            else {
-                                map.invalidateSize();
-                                updateMapMarkers();
+                            else { 
+                                map.invalidateSize(); 
+                                updateMapMarkers(); 
                             }
-                        });
+                        }, 100);
                     }
+                };
+                
+                // Add button handler
+                const openAddModal = () => {
+                    formEvent.value = {
+                        date: tripDays[currentDateIndex.value].date,
+                        time: '12:00', type: 'spot', title: '', locationName: '', note: ''
+                    };
+                    showEventModal.value = true;
                 };
 
                 // Helpers
@@ -620,15 +622,12 @@
                     window.addEventListener('firebase-ready', () => {
                         const { collection, onSnapshot, query } = window.fireOps;
                         const db = window.db;
-                        // Use a new collection to ensure clean state or sync
                         const q = query(collection(db, 'events_v19'));
                         
                         onSnapshot(q, (snap) => {
                             if (!snap.empty) {
-                                // Optional: Update local events from cloud if needed
-                                // events.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                                // Update from cloud if needed
                             } else {
-                                // Seed cloud
                                 initialItinerary.forEach(item => window.fireOps.addDoc(collection(db, 'events_v19'), item));
                             }
                         });
@@ -638,13 +637,13 @@
                 watch([currentTab, currentDateIndex], (val) => {
                     nextTick(() => lucide.createIcons());
                     if(currentTab.value === 'map') {
-                        nextTick(() => {
+                        setTimeout(() => {
                             if(!map) initMap();
                             else { 
                                 map.invalidateSize(); 
                                 updateMapMarkers(); 
                             }
-                        });
+                        }, 100);
                     }
                 });
 
@@ -654,7 +653,8 @@
                     saveEvent, deleteEvent, isEditing: false,
                     initMap, locateUser, fitBounds, openAddModal, editEvent: () => {},
                     getCategoryName, getCategoryColor, getCategoryBadgeStyle, getCategoryIcon,
-                    currentWeather, currentCity, currentHeaderImage, firebaseReady: ref(true)
+                    currentWeather, currentCity, currentHeaderImage, firebaseReady: ref(true),
+                    handleImageError
                 };
             }
         }).mount('#app');
