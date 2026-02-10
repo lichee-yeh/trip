@@ -1,4 +1,4 @@
-<!-- Version: v47.0 (Based on v45 Stable Core, Removed Bottom Nav, Top Map Toggle) -->
+<!-- Version: v48.0 (Bulletproof Architecture: Vue Main Script Separated from Firebase Module) -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -28,7 +28,6 @@
         }
     </script>
     <style>
-        /* 移除 v-cloak */
         body { background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         
@@ -45,15 +44,13 @@
         .date-btn-active { background-color: #0D9488; color: white; transform: scale(1.05); border: none; box-shadow: 0 4px 10px rgba(13,148,136,0.2); }
         .date-btn-inactive { background-color: #F1F5F9; color: #94A3B8; border: 1px solid transparent; }
 
-        /* 地圖圖層 - 全螢幕滑入 */
+        /* 地圖圖層 */
         .map-layer {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            z-index: 60; /* 蓋過一切 */
-            background-color: #e5e7eb;
-            transform: translateX(100%);
-            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 0; opacity: 0; pointer-events: none;
+            background-color: #e5e7eb; transition: opacity 0.2s ease;
         }
-        .map-layer.active { transform: translateX(0); }
+        .map-layer.active { z-index: 60; opacity: 1; pointer-events: auto; }
         #map-container { width: 100%; height: 100%; }
 
         .custom-div-icon {
@@ -64,10 +61,10 @@
         
         /* FAB */
         .fab-btn {
-            position: fixed; bottom: 30px; right: 20px;
-            width: 56px; height: 56px; background-color: #F59E0B; color: white;
+            position: fixed; bottom: 40px; right: 24px;
+            width: 60px; height: 60px; background-color: #F59E0B; color: white;
             border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4); z-index: 30;
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4); z-index: 40;
             transition: transform 0.2s;
         }
         .fab-btn:active { transform: scale(0.95); }
@@ -109,11 +106,8 @@
                     </p>
                 </div>
                 <div class="flex gap-2">
-                    <!-- 地圖 (移動到右上角) -->
-                    <button @click="openMapLayer" class="w-9 h-9 rounded-full bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 active:scale-95 transition shadow-sm"><i data-lucide="map" class="w-4 h-4"></i></button>
-                    <!-- 資訊 -->
+                    <button @click="switchTab('map')" class="w-9 h-9 rounded-full bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 active:scale-95 transition shadow-sm"><i data-lucide="map" class="w-4 h-4"></i></button>
                     <button @click="openPopup('info')" class="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 active:scale-95 transition"><i data-lucide="info" class="w-4 h-4"></i></button>
-                    <!-- 購物 -->
                     <button @click="openPopup('shopping')" class="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 active:scale-95 transition"><i data-lucide="shopping-bag" class="w-4 h-4"></i></button>
                 </div>
             </div>
@@ -129,11 +123,11 @@
             </div>
         </div>
 
-        <!-- 2. Main Content (Schedule) -->
+        <!-- 2. Main Content -->
         <main class="flex-1 overflow-y-auto hide-scrollbar relative">
             
             <!-- Schedule Layer -->
-            <div class="schedule-layer px-4 pt-4 pb-24 relative z-10 bg-slate-50 min-h-full">
+            <div class="schedule-layer px-4 pt-4 pb-24 relative z-10 bg-slate-50 min-h-full" v-show="currentTab === 'schedule'">
                 
                 <!-- Weather -->
                 <div class="mb-5 bg-white border border-teal-50 rounded-2xl p-4 flex justify-between items-center shadow-soft">
@@ -174,7 +168,7 @@
                             </div>
 
                             <!-- Card -->
-                            <div class="bg-white rounded-2xl p-4 shadow-card border border-slate-100 flex-1 min-w-0 active:scale-98 transition-transform" @click="openMap(event)">
+                            <div class="bg-white rounded-2xl p-4 shadow-soft border border-slate-100 flex-1 min-w-0 active:scale-98 transition-transform" @click="openMap(event)">
                                 <div class="flex justify-between items-start">
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-2 mb-1">
@@ -223,10 +217,9 @@
                 </div>
             </div>
 
-            <!-- 地圖層 (全螢幕滑入) -->
-            <div class="map-layer" :class="{'active': showMapLayer}">
-                <!-- 返回按鈕 -->
-                <button @click="closeMapLayer" class="absolute top-4 left-4 w-10 h-10 bg-white rounded-full shadow-lg z-[500] flex items-center justify-center text-slate-700 border border-slate-100">
+            <!-- 地圖層 -->
+            <div class="map-layer" :class="{'active': currentTab === 'map'}">
+                <button @click="switchTab('schedule')" class="absolute top-4 left-4 w-10 h-10 bg-white rounded-full shadow-lg z-[500] flex items-center justify-center text-slate-700 border border-slate-100">
                     <i data-lucide="arrow-left" class="w-6 h-6"></i>
                 </button>
                 
@@ -245,7 +238,7 @@
         </main>
 
         <!-- Floating Add Button -->
-        <button v-if="!showMapLayer" @click="openAddModal" class="fab-btn">
+        <button v-if="currentTab==='schedule'" @click="openAddModal" class="fab-btn">
             <i data-lucide="plus" class="w-8 h-8"></i>
         </button>
 
@@ -332,13 +325,14 @@
 
     </div>
 
+    <!-- 主程式邏輯 (獨立執行，不受模組影響) -->
     <script>
         const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
 
         createApp({
             setup() {
-                const STORAGE_KEY = 'remi_trip_v46_data';
-                const showMapLayer = ref(false);
+                const STORAGE_KEY = 'remi_trip_v48_bulletproof';
+                const currentTab = ref('schedule');
                 const activePopup = ref(null);
                 const currentDateIndex = ref(0);
                 const calcPHP = ref('');
@@ -347,14 +341,14 @@
                 const formShopping = ref({ name: '' });
 
                 const tripDays = [
-                    { date: '2026-02-11', dayShort: '週三', dayNum: '11', highlight: '抵達宿霧', dateShort: '2/11', location: '宿霧市區', lat: 10.3157, lng: 123.8854 },
-                    { date: '2026-02-12', dayShort: '週四', dayNum: '12', highlight: '市區古蹟', dateShort: '2/12', location: '宿霧市區', lat: 10.3157, lng: 123.8854 },
-                    { date: '2026-02-13', dayShort: '週五', dayNum: '13', highlight: '前往薄荷', dateShort: '2/13', location: '薄荷島', lat: 9.6500, lng: 123.8500 },
-                    { date: '2026-02-14', dayShort: '週六', dayNum: '14', highlight: '沙丁魚', dateShort: '2/14', location: '薄荷島', lat: 9.6500, lng: 123.8500 },
-                    { date: '2026-02-15', dayShort: '週日', dayNum: '15', highlight: '跳島海龜', dateShort: '2/15', location: '薄荷島', lat: 9.6500, lng: 123.8500 },
-                    { date: '2026-02-16', dayShort: '週一', dayNum: '16', highlight: '巧克力山', dateShort: '2/16', location: '薄荷島', lat: 9.6500, lng: 123.8500 },
-                    { date: '2026-02-17', dayShort: '週二', dayNum: '17', highlight: '回馬尼拉', dateShort: '2/17', location: '馬尼拉', lat: 14.5547, lng: 121.0244 },
-                    { date: '2026-02-18', dayShort: '週三', dayNum: '18', highlight: 'BGC & 返台', dateShort: '2/18', location: '馬尼拉', lat: 14.5547, lng: 121.0244 }
+                    { date: '2026-02-11', dayShort: '週三', dayNum: '11', highlight: '抵達宿霧', dateShort: '2/11', location: '宿霧市區' },
+                    { date: '2026-02-12', dayShort: '週四', dayNum: '12', highlight: '市區古蹟', dateShort: '2/12', location: '宿霧市區' },
+                    { date: '2026-02-13', dayShort: '週五', dayNum: '13', highlight: '前往薄荷', dateShort: '2/13', location: '薄荷島' },
+                    { date: '2026-02-14', dayShort: '週六', dayNum: '14', highlight: '沙丁魚', dateShort: '2/14', location: '薄荷島' },
+                    { date: '2026-02-15', dayShort: '週日', dayNum: '15', highlight: '跳島海龜', dateShort: '2/15', location: '薄荷島' },
+                    { date: '2026-02-16', dayShort: '週一', dayNum: '16', highlight: '巧克力山', dateShort: '2/16', location: '薄荷島' },
+                    { date: '2026-02-17', dayShort: '週二', dayNum: '17', highlight: '回馬尼拉', dateShort: '2/17', location: '馬尼拉' },
+                    { date: '2026-02-18', dayShort: '週三', dayNum: '18', highlight: 'BGC & 返台', dateShort: '2/18', location: '馬尼拉' }
                 ];
 
                 const initialItinerary = [
@@ -378,7 +372,8 @@
                     { id: '4-2', date: '2026-02-14', time: '11:00', title: 'Hinagdanan Cave', locationName: '鐘乳石洞', type: 'spot', note: 'No Swim', lat: 9.613, lng: 123.799 },
                     { id: '4-3', date: '2026-02-14', time: '12:00', title: '午餐 Ubeco', locationName: '韓系網美店', type: 'food', tag: '指定', lat: 9.6056, lng: 123.7742 },
                     { id: '4-5', date: '2026-02-14', time: '18:00', title: '晚餐 Mist', locationName: '森林系餐廳', type: 'food', tag: '推薦', lat: 9.554, lng: 123.766 },
-                    { id: '5-0', date: '2026-02-15', time: '06:00', title: '跳島一日遊', locationName: 'Balicasag', type: 'spot', tag: '包船', lat: 9.518, lng: 123.680 },
+                    { id: '5-0', date: '2026-02-15', time: '05:30', title: '簡易早餐', locationName: '餐盒', type: 'food', tag: '早起', lat: 9.546, lng: 123.774 },
+                    { id: '5-1', date: '2026-02-15', time: '06:00', title: '跳島一日遊', locationName: 'Balicasag', type: 'spot', tag: '包船', lat: 9.518, lng: 123.680 },
                     { id: '5-2', date: '2026-02-15', time: '11:00', title: 'Virgin Island', locationName: '處女島', type: 'spot', lat: 9.556, lng: 123.730 },
                     { id: '5-4', date: '2026-02-15', time: '14:30', title: 'Check in Villa', locationName: 'Villa Kalachuchi (Danao)', type: 'hotel', note: '無早餐有廚房', lat: 9.556, lng: 123.760 },
                     { id: '5-5', date: '2026-02-15', time: '18:00', title: '晚餐 Luna Rossa', locationName: '素食義大利菜', type: 'food', tag: '推薦', lat: 9.553, lng: 123.762 },
@@ -399,7 +394,6 @@
                     { id: '8-4', date: '2026-02-18', time: '23:35', title: '返台 5J310', locationName: 'MNL -> TPE', type: 'transport' }
                 ];
 
-                // LocalStorage First
                 const loadFromLocal = () => {
                     const saved = localStorage.getItem(STORAGE_KEY);
                     return saved ? JSON.parse(saved) : { events: [...initialItinerary], shopping: [] };
@@ -516,25 +510,30 @@
                             L.marker(point, { icon }).bindPopup(e.title).addTo(markersLayer);
                         });
                         map.fitBounds(L.latLngBounds(latlngs), { padding: [50, 50] });
+                    } else {
+                        // Fallback
+                        const d = tripDays[currentDateIndex.value];
+                        map.setView([d.lat, d.lng], 12);
                     }
                 };
                 const locateUser = () => map && map.locate({ setView: true, maxZoom: 14 });
                 const fitBounds = () => updateMapMarkers();
 
-                const openMapLayer = () => {
-                    showMapLayer.value = true;
-                    // Force refresh map size after transition
-                    setTimeout(() => {
-                        if (!map) forceInitMap();
-                        else {
-                            map.invalidateSize();
-                            updateMapMarkers();
-                        }
-                    }, 100);
+                const switchTab = (tabId) => {
+                    if(tabId === 'map') {
+                        currentTab.value = 'schedule'; // Map is overlay
+                        setTimeout(() => {
+                             const layer = document.querySelector('.map-layer');
+                             if(layer) layer.classList.add('active');
+                             forceInitMap();
+                        }, 10);
+                    } else {
+                        const layer = document.querySelector('.map-layer');
+                        if(layer) layer.classList.remove('active');
+                    }
                 };
-
+                
                 const closeMapLayer = () => { showMapLayer.value = false; };
-
 
                 // Helpers
                 const getCategoryName = (c) => ({ spot: '景點', food: '美食', hotel: '住宿', transport: '交通', note: '筆記', activity: '活動' })[c] || '其他';
@@ -546,7 +545,12 @@
                 onMounted(() => { 
                     lucide.createIcons();
                     fetchWeather();
-                    window.addEventListener('firebase-ready', () => {});
+                    // Firebase Sync Placeholder
+                    window.addEventListener('firebase-ready', () => {
+                         try {
+                            // Sync logic if online
+                         } catch(e){}
+                    });
                 });
                 
                 watch([currentDateIndex, activePopup], () => {
@@ -556,10 +560,11 @@
                 return {
                     activePopup, currentDateIndex, currentDayEvents, tripDays, changeDate, openMap, 
                     saveEvent, deleteEvent, openPopup, closePopup, openAddModal, 
-                    initMap: forceInitMap, locateUser, fitBounds, openMapLayer, closeMapLayer, showMapLayer,
+                    initMap: forceInitMap, locateUser, fitBounds, openMapLayer: () => switchTab('map'), closeMapLayer, showMapLayer,
                     getCategoryName, getCategoryColor, getCategoryBadgeStyle, getCategoryIcon, currentWeather, currentCity, 
                     calcPHP, calcTWD, showEventModal, formEvent, resetToDefault,
-                    shoppingList, formShopping, addShopping, deleteItem, handleImageError
+                    shoppingList, formShopping, addShopping, deleteItem,
+                    switchTab
                 };
             }
         }).mount('#app');
