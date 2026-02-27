@@ -19,7 +19,7 @@
                 extend: {
                     colors: { primary: '#0D9488', secondary: '#F59E0B', bg: '#F8FAFC' },
                     fontFamily: { sans: ['Noto Sans TC', 'sans-serif'], en: ['Nunito', 'sans-serif'] },
-                    boxShadow: { 'fab': '0 4px 14px 0 rgba(245, 158, 11, 0.39)', 'soft': '0 2px 15px -3px rgba(0, 0, 0, 0.05)' }
+                    boxShadow: { 'fab': '0 6px 20px rgba(245, 158, 11, 0.45)', 'soft': '0 2px 15px -3px rgba(0, 0, 0, 0.05)' }
                 }
             }
         }
@@ -27,29 +27,47 @@
     <style>
         body { background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
+        
+        /* 修正 Header 層級與點擊穿透問題 */
         .simple-header {
             background: white; padding-top: max(env(safe-area-inset-top), 16px);
-            position: sticky; top: 0; z-index: 40; border-bottom: 1px solid #F1F5F9;
+            position: sticky; top: 0; z-index: 60; /* 提升至地圖層之上 */
+            border-bottom: 1px solid #F1F5F9;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+            pointer-events: auto; /* 強制啟動點擊 */
         }
+
         .date-btn-active { background-color: #0D9488; color: white; transform: scale(1.05); border: none; box-shadow: 0 4px 10px rgba(13,148,136,0.2); }
         .date-btn-inactive { background-color: #F1F5F9; color: #94A3B8; }
 
-        /* FAB 按鈕優化：確保在最上層且明顯 */
+        /* FAB 按鈕樣式強化 */
         .fab-btn {
             position: fixed; bottom: 30px; right: 24px;
-            width: 56px; height: 56px; background-color: #F59E0B; color: white;
+            width: 58px; height: 58px; background-color: #F59E0B; color: white;
             border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4); z-index: 50;
+            box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5); z-index: 100;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 2px solid white;
         }
-        .fab-btn:active { transform: scale(0.9) rotate(90deg); }
+        .fab-btn:active { transform: scale(0.9); }
 
-        .timeline-left-col { position: relative; display: flex; flex-direction: column; align-items: center; width: 3rem; flex-shrink: 0; }
+        /* 時間軸線條 */
+        .timeline-container { position: relative; }
+        .timeline-left-col { position: relative; display: flex; flex-direction: column; align-items: center; width: 3.5rem; flex-shrink: 0; }
         .timeline-connector {
-            position: absolute; top: 2rem; bottom: -2.5rem; width: 2px;
+            position: absolute; top: 2.2rem; bottom: -2.8rem; width: 2px;
             background-color: #CBD5E1; left: 50%; transform: translateX(-50%); z-index: 0;
         }
         .timeline-container:last-child .timeline-connector { display: none; }
+        
+        /* 地圖層修正 */
+        .map-layer {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 70; opacity: 0; pointer-events: none;
+            background-color: #e5e7eb; transition: opacity 0.3s ease;
+        }
+        .map-layer.active { opacity: 1; pointer-events: auto; }
+
         [v-cloak] { display: none; }
     </style>
 </head>
@@ -93,11 +111,10 @@
                             <span class="text-2xl font-black text-slate-800 font-en">30°</span>
                             <span class="text-xs text-slate-400">體感 34°</span>
                         </div>
-                        <div class="text-[10px] font-bold text-slate-400">降雨 10%</div>
                     </div>
                 </div>
                 <div class="text-right">
-                    <div class="text-[10px] text-teal-600 bg-teal-50 px-2 py-0.5 rounded font-bold mb-1 uppercase">Today's Highlight</div>
+                    <div class="text-[10px] text-teal-600 bg-teal-50 px-2 py-0.5 rounded font-bold mb-1 uppercase">Goal</div>
                     <div class="text-sm font-bold text-slate-700">{{ tripDays[currentDateIndex].highlight }}</div>
                 </div>
             </div>
@@ -107,23 +124,20 @@
                     <div class="flex gap-4 relative">
                         <div class="timeline-left-col pt-1">
                             <div class="timeline-connector"></div>
-                            <div class="w-3 h-3 rounded-full border-2 border-white shadow-md mb-1 relative z-20" :class="getCategoryColor(event.type)"></div>
-                            <span class="text-xs font-bold text-slate-400 font-en bg-slate-50 px-1 rounded relative z-20">{{ event.time }}</span>
+                            <div class="w-3.5 h-3.5 rounded-full border-2 border-white shadow-md mb-1 relative z-20" :class="getCategoryColor(event.type)"></div>
+                            <span class="text-[11px] font-bold text-slate-400 font-en bg-slate-50 px-1 rounded relative z-20">{{ event.time }}</span>
                         </div>
 
-                        <div class="bg-white rounded-2xl p-4 shadow-soft border border-slate-100 flex-1 min-w-0 active:scale-98 transition-transform cursor-pointer" @click="openGoogleMap(event)">
+                        <div class="bg-white rounded-2xl p-4 shadow-soft border border-slate-100 flex-1 min-w-0 active:scale-98 transition-transform" @click="openGoogleMap(event)">
                             <div class="flex justify-between items-start">
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center gap-2 mb-1">
                                         <span class="text-[10px] font-bold px-2 py-0.5 rounded border" :class="getCategoryBadgeStyle(event.type)">
                                             {{ getCategoryName(event.type) }}
                                         </span>
-                                        <span v-if="event.transportTime" class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded flex items-center">
-                                            <i data-lucide="footprints" class="w-3 h-3 mr-1"></i> {{ event.transportTime }}
-                                        </span>
                                     </div>
                                     <h3 class="text-base font-black text-slate-800 leading-tight truncate">{{ event.title }}</h3>
-                                    <p v-if="event.locationName" class="text-xs text-slate-400 mt-1 flex items-center gap-1 truncate">
+                                    <p class="text-xs text-slate-400 mt-1 flex items-center gap-1 truncate">
                                         <i data-lucide="map-pin" class="w-3 h-3 text-teal-500"></i> {{ event.locationName }}
                                     </p>
                                 </div>
@@ -135,8 +149,8 @@
                                 <div v-if="event.note" class="bg-slate-50 rounded-lg px-2 py-1.5 text-xs text-slate-600 flex-1 leading-relaxed italic">
                                     {{ event.note }}
                                 </div>
-                                <span v-if="event.tag" class="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg font-bold flex items-center self-start">
-                                    <i data-lucide="star" class="w-3 h-3 mr-1 fill-yellow-700"></i> {{ event.tag }}
+                                <span v-if="event.tag" class="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg font-bold">
+                                    {{ event.tag }}
                                 </span>
                             </div>
                         </div>
@@ -146,21 +160,25 @@
         </div>
     </main>
 
-    <button @click="openAddModal" class="fab-btn" title="新增行程">
+    <button @click="openAddModal" class="fab-btn">
         <i data-lucide="plus" class="w-8 h-8"></i>
     </button>
 
-    <div v-if="showEventModal" class="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-6 backdrop-blur-sm">
+    <div class="map-layer" :class="{'active': showMapLayer}">
+        <button @click="closeMapLayer" class="absolute top-12 left-4 w-10 h-10 bg-white rounded-full shadow-lg z-[1000] flex items-center justify-center">
+            <i data-lucide="arrow-left" class="w-6 h-6"></i>
+        </button>
+        <div id="map-container"></div>
+    </div>
+
+    <div v-if="showEventModal" class="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-6 backdrop-blur-sm">
         <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl">
             <h3 class="font-bold text-xl mb-6 text-slate-800 text-center">新增行程</h3>
             <div class="space-y-4">
-                <div class="grid grid-cols-2 gap-3">
-                    <div><label class="block text-xs font-bold text-slate-400 mb-1">時間</label><input v-model="formEvent.time" type="time" class="w-full border rounded-xl p-3"></div>
-                    <div><label class="block text-xs font-bold text-slate-400 mb-1">分類</label><select v-model="formEvent.type" class="w-full border rounded-xl p-3"><option value="spot">景點</option><option value="food">美食</option><option value="hotel">住宿</option><option value="transport">交通</option></select></div>
-                </div>
-                <div><label class="block text-xs font-bold text-slate-400 mb-1">名稱</label><input v-model="formEvent.title" class="w-full border rounded-xl p-3"></div>
-                <div><label class="block text-xs font-bold text-slate-400 mb-1">地點 (Google 導航)</label><input v-model="formEvent.address" class="w-full border rounded-xl p-3"></div>
-                <div class="flex gap-3 mt-4">
+                <input v-model="formEvent.time" type="time" class="w-full border rounded-xl p-3">
+                <input v-model="formEvent.title" placeholder="標題" class="w-full border rounded-xl p-3">
+                <input v-model="formEvent.address" placeholder="地點 (Google Map)" class="w-full border rounded-xl p-3">
+                <div class="flex gap-3">
                     <button @click="showEventModal=false" class="flex-1 bg-slate-100 py-3 rounded-xl font-bold">取消</button>
                     <button @click="saveEvent" class="flex-1 bg-teal-600 text-white py-3 rounded-xl font-bold">儲存</button>
                 </div>
@@ -175,8 +193,9 @@
 
     createApp({
         setup() {
-            const STORAGE_KEY = 'remi_trip_final_v52';
+            const STORAGE_KEY = 'remi_trip_v53';
             const currentDateIndex = ref(0);
+            const showMapLayer = ref(false);
             const activePopup = ref(null);
             const showEventModal = ref(false);
             const formEvent = ref({ time: '12:00', type: 'food', title: '', address: '' });
@@ -216,20 +235,20 @@
                 window.open(`https://www.google.com/maps/search/?api=1&query=${q}`, '_blank');
             };
 
-            const openAddModal = () => { showEventModal.value = true; };
-            const saveEvent = () => {
-                events.value.push({ ...formEvent.value, id: Date.now(), date: tripDays[currentDateIndex.value].date });
-                localStorage.setItem(STORAGE_KEY, JSON.stringify({ events: events.value }));
-                showEventModal.value = false;
-            };
-
             onMounted(() => { lucide.createIcons(); });
-            watch([currentDateIndex, activePopup], () => { nextTick(() => lucide.createIcons()); });
+            watch([currentDateIndex, activePopup, showMapLayer], () => { nextTick(() => lucide.createIcons()); });
 
             return {
-                tripDays, currentDateIndex, currentDayEvents, openGoogleMap,
+                tripDays, currentDateIndex, currentDayEvents, 
+                changeDate: (idx) => { currentDateIndex.value = idx; },
+                openGoogleMap, showMapLayer, openMapLayer: () => showMapLayer.value = true, closeMapLayer: () => showMapLayer.value = false,
                 activePopup, openPopup: (t) => activePopup.value = t, closePopup: () => activePopup.value = null,
-                showEventModal, formEvent, openAddModal, saveEvent,
+                showEventModal, formEvent, openAddModal: () => showEventModal.value = true,
+                saveEvent: () => {
+                    events.value.push({ ...formEvent.value, id: Date.now(), date: tripDays[currentDateIndex.value].date });
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify({ events: events.value }));
+                    showEventModal.value = false;
+                },
                 getCategoryName: (c) => ({ spot: '景點', food: '美食', hotel: '住宿', transport: '交通' })[c] || '其他',
                 getCategoryColor: (c) => ({ spot: 'bg-teal-500', food: 'bg-amber-400', hotel: 'bg-indigo-500', transport: 'bg-sky-500' })[c] || 'bg-slate-400',
                 getCategoryBadgeStyle: (c) => ({ spot: 'bg-teal-50 text-teal-600 border-teal-200', food: 'bg-amber-50 text-amber-600 border-amber-200' })[c] || 'bg-slate-50 text-slate-500 border-slate-200'
