@@ -19,7 +19,7 @@
                 extend: {
                     colors: { primary: '#0D9488', secondary: '#F59E0B', bg: '#F8FAFC' },
                     fontFamily: { sans: ['Noto Sans TC', 'sans-serif'], en: ['Nunito', 'sans-serif'] },
-                    boxShadow: { 'soft': '0 2px 15px -3px rgba(0, 0, 0, 0.05)' }
+                    boxShadow: { 'fab': '0 4px 14px 0 rgba(245, 158, 11, 0.39)', 'soft': '0 2px 15px -3px rgba(0, 0, 0, 0.05)' }
                 }
             }
         }
@@ -27,266 +27,215 @@
     <style>
         body { background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
-        
-        /* 頂部 Header */
         .simple-header {
-            background: white;
-            padding-top: max(env(safe-area-inset-top), 16px);
-            position: sticky; top: 0; z-index: 40;
-            border-bottom: 1px solid #F1F5F9;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+            background: white; padding-top: max(env(safe-area-inset-top), 16px);
+            position: sticky; top: 0; z-index: 40; border-bottom: 1px solid #F1F5F9;
         }
-
-        /* 日期按鈕 */
         .date-btn-active { background-color: #0D9488; color: white; transform: scale(1.05); border: none; box-shadow: 0 4px 10px rgba(13,148,136,0.2); }
-        .date-btn-inactive { background-color: #F1F5F9; color: #94A3B8; border: 1px solid transparent; }
+        .date-btn-inactive { background-color: #F1F5F9; color: #94A3B8; }
 
-        /* 地圖圖層 */
-        .map-layer {
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            z-index: 0; opacity: 0; pointer-events: none;
-            background-color: #e5e7eb; transition: opacity 0.2s ease;
+        /* FAB 按鈕優化：確保在最上層且明顯 */
+        .fab-btn {
+            position: fixed; bottom: 30px; right: 24px;
+            width: 56px; height: 56px; background-color: #F59E0B; color: white;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4); z-index: 50;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .map-layer.active { z-index: 60; opacity: 1; pointer-events: auto; }
-        #map-container { width: 100%; height: 100%; }
+        .fab-btn:active { transform: scale(0.9) rotate(90deg); }
 
-        /* Timeline Connector 修正 */
-        .timeline-container { position: relative; }
         .timeline-left-col { position: relative; display: flex; flex-direction: column; align-items: center; width: 3rem; flex-shrink: 0; }
         .timeline-connector {
-            position: absolute;
-            top: 2rem;
-            bottom: -2.5rem;
-            width: 2px;
-            background-color: #CBD5E1;
-            z-index: 0;
-            left: 50%;
-            transform: translateX(-50%);
+            position: absolute; top: 2rem; bottom: -2.5rem; width: 2px;
+            background-color: #CBD5E1; left: 50%; transform: translateX(-50%); z-index: 0;
         }
         .timeline-container:last-child .timeline-connector { display: none; }
-
-        .popup-enter-active, .popup-leave-active { transition: all 0.25s ease-out; }
-        .popup-enter-from, .popup-leave-to { opacity: 0; transform: translateY(15px); }
-
         [v-cloak] { display: none; }
     </style>
 </head>
 <body class="h-screen flex flex-col font-sans text-slate-700 bg-slate-50">
 
-    <div id="app" v-cloak class="flex flex-col w-full h-full max-w-md mx-auto relative shadow-2xl overflow-hidden bg-slate-50">
+<div id="app" v-cloak class="flex flex-col w-full h-full max-w-md mx-auto relative shadow-2xl overflow-hidden bg-slate-50">
 
-        <header class="simple-header shrink-0">
-            <div class="px-4 pb-2 flex justify-between items-center">
-                <div>
-                    <h1 class="text-xl font-black text-slate-800 tracking-tight">Remi’s Family Trip</h1>
-                    <p class="text-xs text-slate-400 font-bold flex items-center gap-1 mt-0.5">
-                        <i data-lucide="map-pin" class="w-3 h-3 text-teal-500"></i> {{ tripDays[currentDateIndex].location }}
-                    </p>
-                </div>
-                <div class="flex gap-2">
-                    <button @click="openMapLayer" class="w-9 h-9 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 shadow-sm"><i data-lucide="map" class="w-4 h-4"></i></button>
-                    <button @click="openPopup('info')" class="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-500 shadow-sm"><i data-lucide="info" class="w-4 h-4"></i></button>
-                    <button @click="openPopup('shopping')" class="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-500 shadow-sm"><i data-lucide="shopping-bag" class="w-4 h-4"></i></button>
-                </div>
+    <header class="simple-header shrink-0">
+        <div class="px-4 pb-2 flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-black text-slate-800 tracking-tight">Remi’s Family Trip</h1>
+                <p class="text-xs text-slate-400 font-bold flex items-center gap-1 mt-0.5">
+                    <i data-lucide="map-pin" class="w-3 h-3 text-teal-500"></i> {{ tripDays[currentDateIndex].location }}
+                </p>
             </div>
-
-            <div class="flex overflow-x-auto hide-scrollbar gap-2 px-4 pb-3 snap-x">
-                <button v-for="(day, idx) in tripDays" :key="idx" @click="changeDate(idx)"
-                    class="flex-shrink-0 flex flex-col items-center justify-center w-[3.5rem] h-14 rounded-xl transition-all duration-200 snap-start"
-                    :class="currentDateIndex === idx ? 'date-btn-active' : 'date-btn-inactive'">
-                    <span class="text-[10px] font-bold uppercase opacity-80">{{ day.dayShort }}</span>
-                    <span class="text-lg font-black font-en leading-none">{{ day.dayNum }}</span>
-                </button>
+            <div class="flex gap-2">
+                <button @click="openMapLayer" class="w-9 h-9 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 shadow-sm"><i data-lucide="map" class="w-4 h-4"></i></button>
+                <button @click="openPopup('info')" class="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-500 shadow-sm"><i data-lucide="info" class="w-4 h-4"></i></button>
+                <button @click="openPopup('shopping')" class="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-500 shadow-sm"><i data-lucide="shopping-bag" class="w-4 h-4"></i></button>
             </div>
-        </header>
-
-        <main class="flex-1 overflow-y-auto hide-scrollbar relative">
-            <div class="schedule-layer px-4 pt-4 pb-24 relative z-10 bg-slate-50 min-h-full">
-                
-                <div class="mb-5 bg-white border border-teal-50 rounded-2xl p-4 flex justify-between items-center shadow-soft">
-                    <div class="flex items-center gap-3">
-                        <div class="p-2 rounded-full" :class="weather.isRainy ? 'bg-blue-50 text-blue-500' : 'bg-amber-50 text-amber-500'">
-                            <i :data-lucide="weather.icon" class="w-6 h-6"></i>
-                        </div>
-                        <div>
-                            <div class="flex items-baseline gap-1">
-                                <span class="text-2xl font-black text-slate-800 font-en">{{ weather.temp }}°</span>
-                                <span class="text-xs text-slate-400">體感 {{ weather.feels_like }}°</span>
-                            </div>
-                            <div class="text-[10px] font-bold mt-0.5" :class="weather.rainProb > 40 ? 'text-blue-600' : 'text-slate-400'">
-                                降雨 {{ weather.rainProb }}%
-                            </div>
-                        </div>
-                    </div>
-                    <div class="text-right">
-                        <div class="text-[10px] text-teal-600 bg-teal-50 px-2 py-0.5 rounded font-bold mb-1">HIGHLIGHT</div>
-                        <div class="text-sm font-bold text-slate-700">{{ tripDays[currentDateIndex].highlight }}</div>
-                    </div>
-                </div>
-
-                <div class="space-y-0 relative pl-2">
-                    <div v-for="(event, index) in currentDayEvents" :key="event.id" class="relative z-10 mb-8 last:mb-0 timeline-container">
-                        <div class="flex gap-4 relative">
-                            <div class="timeline-left-col pt-1">
-                                <div class="timeline-connector"></div>
-                                <div class="w-3 h-3 rounded-full border-2 border-white shadow-md mb-1 relative z-20" :class="getCategoryColor(event.type)"></div>
-                                <span class="text-xs font-bold text-slate-400 font-en bg-slate-50 px-1 rounded relative z-20">{{ event.time }}</span>
-                            </div>
-
-                            <div class="bg-white rounded-2xl p-4 shadow-soft border border-slate-100 flex-1 min-w-0 active:scale-98 transition-transform cursor-pointer" @click="openGoogleMap(event)">
-                                <div class="flex justify-between items-start">
-                                    <div class="flex-1 min-w-0">
-                                        <div class="flex items-center gap-2 mb-1">
-                                            <span class="text-[10px] font-bold px-2 py-0.5 rounded border" :class="getCategoryBadgeStyle(event.type)">
-                                                {{ getCategoryName(event.type) }}
-                                            </span>
-                                            <span v-if="event.transportTime" class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded flex items-center">
-                                                <i data-lucide="footprints" class="w-3 h-3 mr-1"></i> {{ event.transportTime }}
-                                            </span>
-                                        </div>
-                                        <h3 class="text-base font-black text-slate-800 leading-tight truncate pr-1">{{ event.title }}</h3>
-                                        <p class="text-xs text-slate-400 mt-1 flex items-center gap-1 truncate">
-                                            <i data-lucide="map-pin" class="w-3 h-3 text-teal-500"></i> {{ event.locationName }}
-                                        </p>
-                                    </div>
-                                    <button class="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center shadow-sm">
-                                        <i data-lucide="navigation" class="w-4 h-4"></i>
-                                    </button>
-                                </div>
-                                <div v-if="event.note || event.tag" class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
-                                    <div v-if="event.note" class="bg-slate-50 rounded-lg px-2 py-1.5 text-xs text-slate-600 flex-1 leading-relaxed">
-                                        {{ event.note }}
-                                    </div>
-                                    <span v-if="event.tag" class="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg font-bold flex items-center self-start">
-                                        <i data-lucide="star" class="w-3 h-3 mr-1 fill-yellow-700"></i> {{ event.tag }}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </main>
-
-        <button v-if="!showMapLayer" @click="openAddModal" class="fab-btn">
-            <i data-lucide="plus" class="w-8 h-8"></i>
-        </button>
-
-        <div class="map-layer" :class="{'active': showMapLayer}">
-            <button @click="closeMapLayer" class="absolute top-4 left-4 w-10 h-10 bg-white rounded-full shadow-lg z-[500] flex items-center justify-center text-slate-700">
-                <i data-lucide="arrow-left" class="w-6 h-6"></i>
-            </button>
-            <div id="map-container"></div>
         </div>
 
-        <transition name="popup">
-            <div v-if="activePopup" class="fixed inset-0 z-[100] bg-white flex flex-col h-full w-full">
-                <div class="px-5 pt-12 pb-3 flex justify-between items-center shadow-sm border-b">
-                    <h2 class="text-xl font-black text-slate-800">{{ activePopup === 'info' ? '旅遊資訊' : '購物清單' }}</h2>
-                    <button @click="closePopup" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500"><i data-lucide="x" class="w-6 h-6"></i></button>
-                </div>
-                </div>
-        </transition>
+        <div class="flex overflow-x-auto hide-scrollbar gap-2 px-4 pb-3 snap-x">
+            <button v-for="(day, idx) in tripDays" :key="idx" @click="changeDate(idx)"
+                class="flex-shrink-0 flex flex-col items-center justify-center w-[3.5rem] h-14 rounded-xl transition-all duration-200 snap-start"
+                :class="currentDateIndex === idx ? 'date-btn-active' : 'date-btn-inactive'">
+                <span class="text-[10px] font-bold uppercase opacity-80">{{ day.dayShort }}</span>
+                <span class="text-lg font-black font-en leading-none">{{ day.dayNum }}</span>
+            </button>
+        </div>
+    </header>
 
+    <main class="flex-1 overflow-y-auto hide-scrollbar relative">
+        <div class="schedule-layer px-4 pt-4 pb-24 relative z-10 bg-slate-50 min-h-full">
+            
+            <div class="mb-5 bg-white border border-teal-50 rounded-2xl p-4 flex justify-between items-center shadow-soft">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 rounded-full bg-amber-50 text-amber-500"><i data-lucide="sun" class="w-6 h-6"></i></div>
+                    <div>
+                        <div class="flex items-baseline gap-1">
+                            <span class="text-2xl font-black text-slate-800 font-en">30°</span>
+                            <span class="text-xs text-slate-400">體感 34°</span>
+                        </div>
+                        <div class="text-[10px] font-bold text-slate-400">降雨 10%</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-[10px] text-teal-600 bg-teal-50 px-2 py-0.5 rounded font-bold mb-1 uppercase">Today's Highlight</div>
+                    <div class="text-sm font-bold text-slate-700">{{ tripDays[currentDateIndex].highlight }}</div>
+                </div>
+            </div>
+
+            <div class="space-y-0 relative pl-2">
+                <div v-for="(event, index) in currentDayEvents" :key="event.id" class="relative z-10 mb-8 timeline-container">
+                    <div class="flex gap-4 relative">
+                        <div class="timeline-left-col pt-1">
+                            <div class="timeline-connector"></div>
+                            <div class="w-3 h-3 rounded-full border-2 border-white shadow-md mb-1 relative z-20" :class="getCategoryColor(event.type)"></div>
+                            <span class="text-xs font-bold text-slate-400 font-en bg-slate-50 px-1 rounded relative z-20">{{ event.time }}</span>
+                        </div>
+
+                        <div class="bg-white rounded-2xl p-4 shadow-soft border border-slate-100 flex-1 min-w-0 active:scale-98 transition-transform cursor-pointer" @click="openGoogleMap(event)">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="text-[10px] font-bold px-2 py-0.5 rounded border" :class="getCategoryBadgeStyle(event.type)">
+                                            {{ getCategoryName(event.type) }}
+                                        </span>
+                                        <span v-if="event.transportTime" class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded flex items-center">
+                                            <i data-lucide="footprints" class="w-3 h-3 mr-1"></i> {{ event.transportTime }}
+                                        </span>
+                                    </div>
+                                    <h3 class="text-base font-black text-slate-800 leading-tight truncate">{{ event.title }}</h3>
+                                    <p v-if="event.locationName" class="text-xs text-slate-400 mt-1 flex items-center gap-1 truncate">
+                                        <i data-lucide="map-pin" class="w-3 h-3 text-teal-500"></i> {{ event.locationName }}
+                                    </p>
+                                </div>
+                                <button class="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center">
+                                    <i data-lucide="navigation" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            <div v-if="event.note || event.tag" class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
+                                <div v-if="event.note" class="bg-slate-50 rounded-lg px-2 py-1.5 text-xs text-slate-600 flex-1 leading-relaxed italic">
+                                    {{ event.note }}
+                                </div>
+                                <span v-if="event.tag" class="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg font-bold flex items-center self-start">
+                                    <i data-lucide="star" class="w-3 h-3 mr-1 fill-yellow-700"></i> {{ event.tag }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <button @click="openAddModal" class="fab-btn" title="新增行程">
+        <i data-lucide="plus" class="w-8 h-8"></i>
+    </button>
+
+    <div v-if="showEventModal" class="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-6 backdrop-blur-sm">
+        <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl">
+            <h3 class="font-bold text-xl mb-6 text-slate-800 text-center">新增行程</h3>
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="block text-xs font-bold text-slate-400 mb-1">時間</label><input v-model="formEvent.time" type="time" class="w-full border rounded-xl p-3"></div>
+                    <div><label class="block text-xs font-bold text-slate-400 mb-1">分類</label><select v-model="formEvent.type" class="w-full border rounded-xl p-3"><option value="spot">景點</option><option value="food">美食</option><option value="hotel">住宿</option><option value="transport">交通</option></select></div>
+                </div>
+                <div><label class="block text-xs font-bold text-slate-400 mb-1">名稱</label><input v-model="formEvent.title" class="w-full border rounded-xl p-3"></div>
+                <div><label class="block text-xs font-bold text-slate-400 mb-1">地點 (Google 導航)</label><input v-model="formEvent.address" class="w-full border rounded-xl p-3"></div>
+                <div class="flex gap-3 mt-4">
+                    <button @click="showEventModal=false" class="flex-1 bg-slate-100 py-3 rounded-xl font-bold">取消</button>
+                    <button @click="saveEvent" class="flex-1 bg-teal-600 text-white py-3 rounded-xl font-bold">儲存</button>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <script>
-        const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
+</div>
 
-        createApp({
-            setup() {
-                const STORAGE_KEY = 'remi_trip_v51_data';
-                const currentDateIndex = ref(0);
-                const showMapLayer = ref(false);
-                const activePopup = ref(null);
-                const calcPHP = ref('');
-                const weather = ref({ temp: 30, feels_like: 34, rainProb: 10, icon: 'sun', isRainy: false });
+<script>
+    const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
 
-                const tripDays = [
-                    { date: '2026-02-11', dayShort: '週三', dayNum: '11', highlight: '抵達宿霧', location: '宿霧市區', lat: 10.3157, lng: 123.8854, city: 'Cebu City' },
-                    { date: '2026-02-12', dayShort: '週四', dayNum: '12', highlight: '市區古蹟', location: '宿霧市區', lat: 10.3157, lng: 123.8854, city: 'Cebu City' },
-                    { date: '2026-02-13', dayShort: '週五', dayNum: '13', highlight: '前往薄荷', location: '薄荷島', lat: 9.6500, lng: 123.8500, city: 'Bohol' },
-                    { date: '2026-02-14', dayShort: '週六', dayNum: '14', highlight: '沙丁魚', location: '薄荷島', lat: 9.6500, lng: 123.8500, city: 'Bohol' },
-                    { date: '2026-02-15', dayShort: '週日', dayNum: '15', highlight: '跳島海龜', location: '薄荷島', lat: 9.6500, lng: 123.8500, city: 'Bohol' },
-                    { date: '2026-02-16', dayShort: '週一', dayNum: '16', highlight: '巧克力山', location: '薄荷島', lat: 9.6500, lng: 123.8500, city: 'Bohol' },
-                    { date: '2026-02-17', dayShort: '週二', dayNum: '17', highlight: '回馬尼拉', location: '馬尼拉', lat: 14.5547, lng: 121.0244, city: 'Manila' },
-                    { date: '2026-02-18', dayShort: '週三', dayNum: '18', highlight: 'BGC & 返台', location: '馬尼拉', lat: 14.5547, lng: 121.0244, city: 'Manila' }
-                ];
+    createApp({
+        setup() {
+            const STORAGE_KEY = 'remi_trip_final_v52';
+            const currentDateIndex = ref(0);
+            const activePopup = ref(null);
+            const showEventModal = ref(false);
+            const formEvent = ref({ time: '12:00', type: 'food', title: '', address: '' });
 
-                const initialItinerary = [
-                    // Day 1
-                    { id: '1-0', date: '2026-02-11', time: '03:15', title: '飛往馬尼拉 5J311', locationName: 'TPE T1 -> MNL T3', type: 'transport', tag: '轉機', lat: 14.512, lng: 121.015, note: '轉機需領行李，重掛。', address: 'Ninoy Aquino International Airport Terminal 3' },
-                    { id: '1-1', date: '2026-02-11', time: '05:45', title: '抵達馬尼拉 T3', locationName: 'MNL T3', type: 'note', tag: '領行李', address: 'Ninoy Aquino International Airport Terminal 3' },
-                    { id: '1-2', date: '2026-02-11', time: '12:00', title: '抵達宿霧 & Grab', locationName: 'Mactan Airport', type: 'transport', tag: '叫車', address: 'Mactan-Cebu International Airport' },
-                    { id: '1-4', date: '2026-02-11', time: '13:00', title: '飯店 Check-in', locationName: '宿務派克蘭國際大飯店', type: 'hotel', transportTime: '30 min', note: '寄放行李、稍作休息', address: 'Cebu Parklane International Hotel' },
-                    { id: '1-5', date: '2026-02-11', time: '14:00', title: '換匯 & Ayala', locationName: 'Ayala Center Cebu', type: 'activity', tag: '匯率佳', address: 'Ayala Center Cebu, Cardinal Rosales Avenue, Cebu City' },
-                    { id: '1-6', date: '2026-02-11', time: '15:00', title: '午餐 House of Lechon', locationName: 'House of Lechon', type: 'food', tag: '推薦', address: 'House of Lechon, Acacia Street, Cebu City' },
-                    { id: '1-7', date: '2026-02-11', time: '18:00', title: '夜市 Sugbo Mercado', locationName: 'Sugbo Mercado - IT Park', type: 'food', tag: '晚餐', address: 'Sugbo Mercado, IT Park, Cebu City' },
-                    // Day 2
-                    { id: '2-1', date: '2026-02-12', time: '09:00', title: 'Cebu Ocean Park', locationName: 'Cebu Ocean Park', type: 'spot', note: '適合溜小孩', address: 'Cebu Ocean Park, Cebu City' },
-                    { id: '2-3', date: '2026-02-12', time: '11:00', title: '午餐 Aqua Dining', locationName: 'Aqua Dining', type: 'food', tag: '需預約', address: 'Aqua Dining, Cebu Ocean Park' },
-                    { id: '2-5', date: '2026-02-12', time: '13:00', title: '古蹟巡禮', locationName: '麥哲倫十字架', type: 'spot', address: 'Magellan\'s Cross Pavilion, Cebu City' },
-                    { id: '2-6', date: '2026-02-12', time: '14:00', title: '古蹟巡禮', locationName: '聖嬰大教堂', type: 'spot', address: 'Minor Basilica of the Holy Child of Cebu' },
-                    { id: '2-8', date: '2026-02-12', time: '18:00', title: '晚餐 KKD STK + BBQ', locationName: 'KKD STK + BBQ', type: 'food', tag: '推薦', address: 'M.J. Cuenco Avenue, Cebu City' },
-                    // Day 3
-                    { id: '3-1', date: '2026-02-13', time: '10:40', title: '抵達港口 Pier 1', locationName: 'Cebu Pier 1', type: 'note', tag: '買午餐', address: 'Cebu Port Pier 1' },
-                    { id: '3-2', date: '2026-02-13', time: '11:40', title: '搭船 Ocean Jet', locationName: '前往薄荷島', type: 'transport', address: 'Cebu Port Pier 1' },
-                    { id: '3-4', date: '2026-02-13', time: '15:00', title: 'Check-in', locationName: 'Best Western Plus', type: 'hotel', note: 'Alona Beach 鬧區', address: 'Best Western Plus The Ivywall Resort-Panglao' },
-                    { id: '3-6', date: '2026-02-13', time: '18:00', title: '晚餐 Giuseppe Pizzeria', locationName: 'Giuseppe Pizzeria', type: 'food', address: 'Giuseppe Pizzeria & Sicilian Roast, Panglao' },
-                    // Day 4
-                    { id: '4-1', date: '2026-02-14', time: '09:00', title: 'Napaling Reef', locationName: 'Napaling Reef', type: 'spot', address: 'Napaling Reef, Panglao' },
-                    { id: '4-2', date: '2026-02-14', time: '11:00', title: 'Hinagdanan Cave', locationName: '鐘乳石洞', type: 'spot', address: 'Hinagdanan Cave, Panglao' },
-                    { id: '4-3', date: '2026-02-14', time: '12:00', title: '午餐 Ubeco', locationName: 'Ubeco', type: 'food', address: 'Ubeco, Panglao' },
-                    { id: '4-5', date: '2026-02-14', time: '18:00', title: '晚餐 Mist', locationName: 'Mist', type: 'food', address: 'Mist, Panglao' },
-                    // Day 5
-                    { id: '5-0', date: '2026-02-15', time: '06:00', title: '跳島一日遊', locationName: 'Balicasag Island', type: 'spot', address: 'Balicasag Island, Bohol' },
-                    { id: '5-4', date: '2026-02-15', time: '14:30', title: 'Check in Villa', locationName: 'Villa Kalachuchi', type: 'hotel', note: '無早餐有廚房', address: 'Villa Kalachuchi V.K Resort' },
-                    { id: '5-5', date: '2026-02-15', time: '18:00', title: '晚餐 Guitarwoodhouse', locationName: 'Guitarwoodhouse', type: 'food', address: 'Guitarwoodhouse, Panglao' },
-                    // Day 6
-                    { id: '6-2', date: '2026-02-16', time: '10:00', title: '眼鏡猴 & 人造林', locationName: 'Tarsier Conservation Area', type: 'spot', address: 'Bohol Tarsier Conservation Area' },
-                    { id: '6-3', date: '2026-02-16', time: '12:00', title: '午餐 Rio Verde', locationName: 'Rio Verde Floating Resto', type: 'food', address: 'Rio Verde Floating Resto' },
-                    { id: '6-4', date: '2026-02-16', time: '14:00', title: '巧克力山', locationName: 'Chocolate Hills', type: 'spot', address: 'Chocolate Hills Complex' },
-                    { id: '6-6', date: '2026-02-16', time: '18:00', title: '晚餐 Bohol Bee Farm', locationName: 'Bohol Bee Farm', type: 'food', address: 'Bohol Bee Farm Restaurant' },
-                    // Day 7
-                    { id: '7-1', date: '2026-02-17', time: '11:00', title: 'South Farm', locationName: 'South Farm', type: 'spot', address: 'South Farm Panglao' },
-                    { id: '7-5', date: '2026-02-17', time: '18:20', title: '飛往馬尼拉 5J616', locationName: 'TAG -> MNL', type: 'transport', address: 'Bohol-Panglao International Airport' },
-                    { id: '7-7', date: '2026-02-17', time: '22:00', title: '入住 Uptown', locationName: 'Uptown Parksuites', type: 'hotel', address: 'Uptown Parksuites Tower 1' },
-                    // Day 8
-                    { id: '8-1', date: '2026-02-18', time: '10:00', title: 'Mind Museum', locationName: 'The Mind Museum', type: 'spot', address: 'The Mind Museum' },
-                    { id: '8-2', date: '2026-02-18', time: '12:00', title: '午餐 Mamou Meats', locationName: 'Mamou Uptown', type: 'food', address: 'Mamou - A Home Kitchen (Uptown)' },
-                    { id: '8-4', date: '2026-02-18', time: '23:35', title: '返台 5J310', locationName: 'MNL -> TPE', type: 'transport', address: 'Ninoy Aquino International Airport Terminal 3' }
-                ];
+            const tripDays = [
+                { date: '2026-02-11', dayShort: '週三', dayNum: '11', highlight: '抵達宿霧', location: '宿霧市區' },
+                { date: '2026-02-12', dayShort: '週四', dayNum: '12', highlight: '市區古蹟', location: '宿霧市區' },
+                { date: '2026-02-13', dayShort: '週五', dayNum: '13', highlight: '前往薄荷島', location: '薄荷島' },
+                { date: '2026-02-14', dayShort: '週六', dayNum: '14', highlight: '沙丁魚浮潛', location: '薄荷島' },
+                { date: '2026-02-15', dayShort: '週日', dayNum: '15', highlight: '跳島海龜', location: '薄荷島' },
+                { date: '2026-02-16', dayShort: '週一', dayNum: '16', highlight: '巧克力山', location: '薄荷島' },
+                { date: '2026-02-17', dayShort: '週二', dayNum: '17', highlight: '返馬尼拉', location: '馬尼拉' },
+                { date: '2026-02-18', dayShort: '週三', dayNum: '18', highlight: 'BGC & 返台', location: '馬尼拉' }
+            ];
 
-                const events = ref(JSON.parse(localStorage.getItem(STORAGE_KEY))?.events || [...initialItinerary]);
+            const initialItinerary = [
+                { id: '1-0', date: '2026-02-11', time: '03:15', title: '飛往馬尼拉 5J311', locationName: 'TPE T1 -> MNL T3', type: 'transport', tag: '轉機', note: '轉機需領行李，重掛。', address: 'Ninoy Aquino International Airport Terminal 3' },
+                { id: '1-4', date: '2026-02-11', time: '13:00', title: '飯店 Check-in', locationName: '宿務派克蘭國際大飯店', type: 'hotel', note: '寄放行李、稍作休息', address: 'Cebu Parklane International Hotel' },
+                { id: '1-5', date: '2026-02-11', time: '14:00', title: '換匯 & Ayala', locationName: 'Ayala Center Cebu', type: 'activity', tag: '匯率佳', address: 'Ayala Center Cebu' },
+                { id: '1-6', date: '2026-02-11', time: '15:00', title: '午餐 House of Lechon', locationName: 'House of Lechon', type: 'food', tag: '推薦', address: 'House of Lechon, Cebu' },
+                { id: '1-7', date: '2026-02-11', time: '18:00', title: '夜市 Sugbo Mercado', locationName: 'Sugbo Mercado - IT Park', type: 'food', note: '當地人氣夜市', address: 'Sugbo Mercado' },
+                { id: '2-1', date: '2026-02-12', time: '09:00', title: 'Cebu Ocean Park', locationName: '海洋公園', type: 'spot', note: '適合小孩', address: 'Cebu Ocean Park' },
+                { id: '3-2', date: '2026-02-13', time: '11:40', title: '搭船 Ocean Jet', locationName: '前往薄荷島', type: 'transport', address: 'Cebu Port Pier 1' },
+                { id: '6-4', date: '2026-02-16', time: '14:00', title: '巧克力山', locationName: 'Chocolate Hills', type: 'spot', address: 'Chocolate Hills Complex' },
+                { id: '8-4', date: '2026-02-18', time: '23:35', title: '返台 5J310', locationName: 'MNL -> TPE', type: 'transport', address: 'Ninoy Aquino Airport' }
+            ];
 
-                const currentDayEvents = computed(() => {
-                    const targetDate = tripDays[currentDateIndex.value].date;
-                    return events.value.filter(e => e.date === targetDate).sort((a,b) => a.time.localeCompare(b.time));
-                });
+            const events = ref(JSON.parse(localStorage.getItem(STORAGE_KEY))?.events || [...initialItinerary]);
 
-                const changeDate = (idx) => { currentDateIndex.value = idx; };
-                const openGoogleMap = (e) => {
-                    const q = e.address || e.locationName || e.title;
-                    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`, '_blank');
-                };
+            const currentDayEvents = computed(() => {
+                const targetDate = tripDays[currentDateIndex.value].date;
+                return events.value.filter(e => e.date === targetDate).sort((a,b) => a.time.localeCompare(b.time));
+            });
 
-                const openPopup = (t) => activePopup.value = t;
-                const closePopup = () => activePopup.value = null;
+            const openGoogleMap = (e) => {
+                const q = encodeURIComponent(e.address || e.locationName || e.title);
+                window.open(`https://www.google.com/maps/search/?api=1&query=${q}`, '_blank');
+            };
 
-                const getCategoryName = (c) => ({ spot: '景點', food: '美食', hotel: '住宿', transport: '交通', activity: '活動' })[c] || '筆記';
-                const getCategoryColor = (c) => ({ spot: 'bg-teal-500', food: 'bg-amber-400', hotel: 'bg-indigo-500', transport: 'bg-sky-500' })[c] || 'bg-slate-400';
-                const getCategoryBadgeStyle = (c) => ({ spot: 'bg-teal-50 text-teal-600 border-teal-200', food: 'bg-amber-50 text-amber-600 border-amber-200' })[c] || 'bg-slate-50 text-slate-500 border-slate-200';
+            const openAddModal = () => { showEventModal.value = true; };
+            const saveEvent = () => {
+                events.value.push({ ...formEvent.value, id: Date.now(), date: tripDays[currentDateIndex.value].date });
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({ events: events.value }));
+                showEventModal.value = false;
+            };
 
-                onMounted(() => { lucide.createIcons(); });
-                watch([currentDateIndex, activePopup], () => { nextTick(() => lucide.createIcons()); });
+            onMounted(() => { lucide.createIcons(); });
+            watch([currentDateIndex, activePopup], () => { nextTick(() => lucide.createIcons()); });
 
-                return {
-                    tripDays, currentDateIndex, currentDayEvents, changeDate, openGoogleMap,
-                    activePopup, openPopup, closePopup, weather, calcPHP,
-                    getCategoryName, getCategoryColor, getCategoryBadgeStyle
-                };
-            }
-        }).mount('#app');
-    </script>
+            return {
+                tripDays, currentDateIndex, currentDayEvents, openGoogleMap,
+                activePopup, openPopup: (t) => activePopup.value = t, closePopup: () => activePopup.value = null,
+                showEventModal, formEvent, openAddModal, saveEvent,
+                getCategoryName: (c) => ({ spot: '景點', food: '美食', hotel: '住宿', transport: '交通' })[c] || '其他',
+                getCategoryColor: (c) => ({ spot: 'bg-teal-500', food: 'bg-amber-400', hotel: 'bg-indigo-500', transport: 'bg-sky-500' })[c] || 'bg-slate-400',
+                getCategoryBadgeStyle: (c) => ({ spot: 'bg-teal-50 text-teal-600 border-teal-200', food: 'bg-amber-50 text-amber-600 border-amber-200' })[c] || 'bg-slate-50 text-slate-500 border-slate-200'
+            };
+        }
+    }).mount('#app');
+</script>
 </body>
 </html>
