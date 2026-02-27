@@ -13,43 +13,40 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { primary: '#0D9488', secondary: '#F59E0B', bg: '#F8FAFC' },
+                    fontFamily: { sans: ['Noto Sans TC', 'sans-serif'], en: ['Nunito', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
     <style>
         body { background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
-        
-        /* 頂部 Header */
         .simple-header {
-            background: white;
-            padding-top: max(env(safe-area-inset-top), 16px);
-            position: sticky; top: 0; z-index: 40;
-            border-bottom: 1px solid #F1F5F9;
+            background: white; padding-top: max(env(safe-area-inset-top), 16px);
+            position: sticky; top: 0; z-index: 40; border-bottom: 1px solid #F1F5F9;
         }
-
-        /* 交互反饋 */
-        .date-btn-active { background-color: #0D9488; color: white; transform: scale(1.05); box-shadow: 0 4px 10px rgba(13,148,136,0.2); }
+        .date-btn-active { background-color: #0D9488; color: white; transform: scale(1.05); }
         .date-btn-inactive { background-color: #F1F5F9; color: #94A3B8; }
-
-        /* 地圖層容器 */
         .map-layer {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            z-index: 0; opacity: 0; pointer-events: none;
-            transition: opacity 0.3s ease;
+            z-index: 0; opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
         }
         .map-layer.active { z-index: 60; opacity: 1; pointer-events: auto; }
         #map-container { width: 100%; height: 100%; }
-
-        /* 時間軸連接線修正 */
         .timeline-connector {
-            position: absolute;
-            top: 2rem; bottom: -2.5rem;
-            width: 2px; background-color: #E2E8F0;
-            left: 50%; transform: translateX(-50%);
-            z-index: 0;
+            position: absolute; top: 2rem; bottom: -2.5rem; width: 2px;
+            background-color: #E2E8F0; left: 50%; transform: translateX(-50%); z-index: 0;
         }
+        .popup-enter-active, .popup-leave-active { transition: all 0.2s ease; }
+        .popup-enter-from, .popup-leave-to { opacity: 0; transform: translateY(20px); }
     </style>
 </head>
-
-<body class="h-screen flex flex-col font-sans text-slate-700 bg-slate-50">
+<body class="h-screen flex flex-col font-sans text-slate-700">
 
     <div id="app" class="flex flex-col w-full h-full max-w-md mx-auto relative shadow-2xl overflow-hidden bg-slate-50">
 
@@ -62,23 +59,24 @@
                     </p>
                 </div>
                 <div class="flex gap-2">
-                    <button @click="openMapLayer" class="w-9 h-9 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 shadow-sm"><i data-lucide="map" class="w-4 h-4"></i></button>
+                    <button @click="openMapLayer" class="w-9 h-9 rounded-full bg-teal-50 flex items-center justify-center text-teal-600"><i data-lucide="map" class="w-4 h-4"></i></button>
                     <button @click="openPopup('info')" class="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-500"><i data-lucide="info" class="w-4 h-4"></i></button>
+                    <button @click="openPopup('shopping')" class="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-500"><i data-lucide="shopping-bag" class="w-4 h-4"></i></button>
                 </div>
             </div>
 
             <div class="flex overflow-x-auto hide-scrollbar gap-2 px-4 pb-3 snap-x">
                 <button v-for="(day, idx) in tripDays" :key="idx" @click="changeDate(idx)"
-                    class="flex-shrink-0 flex flex-col items-center justify-center w-[3.5rem] h-14 rounded-xl transition-all duration-200"
+                    class="flex-shrink-0 flex flex-col items-center justify-center w-[3.5rem] h-14 rounded-xl transition-all duration-200 snap-start"
                     :class="currentDateIndex === idx ? 'date-btn-active' : 'date-btn-inactive'">
-                    <span class="text-[10px] font-bold uppercase opacity-80">{{ day.dayShort }}</span>
-                    <span class="text-lg font-black font-en leading-none">{{ day.dayNum }}</span>
+                    <span class="text-[10px] font-bold uppercase">{{ day.dayShort }}</span>
+                    <span class="text-lg font-black font-en">{{ day.dayNum }}</span>
                 </button>
             </div>
         </header>
 
         <main class="flex-1 overflow-y-auto hide-scrollbar relative">
-            <div class="schedule-layer px-4 pt-4 pb-24 bg-slate-50 min-h-full">
+            <div class="px-4 pt-4 pb-24 min-h-full">
                 
                 <div class="mb-5 bg-white border border-teal-50 rounded-2xl p-4 flex justify-between items-center shadow-sm">
                     <div class="flex items-center gap-3">
@@ -86,8 +84,8 @@
                             <i data-lucide="sun" class="w-6 h-6"></i>
                         </div>
                         <div>
-                            <span class="text-2xl font-black text-slate-800">30°</span>
-                            <div class="text-[10px] font-bold text-slate-400">FEELS LIKE 34°</div>
+                            <span class="text-2xl font-black text-slate-800">30°C</span>
+                            <div class="text-[10px] font-bold text-slate-400 uppercase">Feels like 34°</div>
                         </div>
                     </div>
                     <div class="text-right">
@@ -102,22 +100,32 @@
                             <div class="flex flex-col items-center w-12 shrink-0 pt-1">
                                 <div class="timeline-connector" v-if="index !== currentDayEvents.length - 1"></div>
                                 <div class="w-3 h-3 rounded-full border-2 border-white shadow-md relative z-20" :class="getCategoryColor(event.type)"></div>
-                                <span class="text-xs font-bold text-slate-400 mt-2">{{ event.time }}</span>
+                                <span class="text-xs font-bold text-slate-400 mt-2 font-en">{{ event.time }}</span>
                             </div>
 
-                            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex-1 min-w-0" @click="openGoogleMap(event)">
+                            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex-1 min-w-0 active:scale-95 transition-transform" @click="openGoogleMap(event)">
                                 <div class="flex justify-between items-start">
                                     <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="text-[10px] font-bold px-2 py-0.5 rounded border" :class="getCategoryBadgeStyle(event.type)">
+                                                {{ getCategoryName(event.type) }}
+                                            </span>
+                                        </div>
                                         <h3 class="text-base font-black text-slate-800 leading-tight truncate">{{ event.title }}</h3>
                                         <p class="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                                            <i data-lucide="map-pin" class="w-3 h-3"></i> {{ event.locationName }}
+                                            <i data-lucide="map-pin" class="w-3 h-3 text-teal-500"></i> {{ event.locationName }}
                                         </p>
                                     </div>
-                                    <button class="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center">
-                                        <i data-lucide="navigation" class="w-4 h-4"></i>
-                                    </button>
+                                    <div class="flex flex-col gap-2">
+                                        <button class="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center">
+                                            <i data-lucide="navigation" class="w-4 h-4"></i>
+                                        </button>
+                                        <button @click.stop="deleteEvent(event.id)" class="w-8 h-8 rounded-full bg-slate-50 text-slate-300 flex items-center justify-center">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
                                 </div>
-                                <div v-if="event.note" class="mt-3 text-xs text-slate-500 bg-slate-50 p-2 rounded-lg">
+                                <div v-if="event.note" class="mt-3 text-xs text-slate-500 bg-slate-50 p-2 rounded-lg border-l-2 border-teal-200">
                                     {{ event.note }}
                                 </div>
                             </div>
@@ -127,8 +135,45 @@
             </div>
         </main>
 
+        <button @click="openAddModal" class="fixed bottom-6 right-6 w-14 h-14 bg-amber-500 text-white rounded-full shadow-lg flex items-center justify-center z-30">
+            <i data-lucide="plus" class="w-8 h-8"></i>
+        </button>
+
+        <transition name="popup">
+            <div v-if="activePopup" class="fixed inset-0 z-[100] bg-white flex flex-col">
+                <div class="px-5 pt-12 pb-4 flex justify-between items-center border-bottom shadow-sm">
+                    <h2 class="text-xl font-black text-slate-800">{{ activePopup === 'info' ? '旅遊資訊' : '購物清單' }}</h2>
+                    <button @click="activePopup = null" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center"><i data-lucide="x" class="w-6 h-6"></i></button>
+                </div>
+                
+                <div v-if="activePopup === 'info'" class="p-5 space-y-6 overflow-y-auto">
+                    <div class="bg-teal-600 rounded-2xl p-5 text-white shadow-lg">
+                        <h3 class="font-bold mb-3">PHP 匯率換算 (1:0.56)</h3>
+                        <div class="flex items-center gap-4">
+                            <input type="number" v-model="calcPHP" class="bg-white/20 rounded-xl p-3 w-full text-xl font-bold outline-none" placeholder="PHP">
+                            <i data-lucide="arrow-right"></i>
+                            <div class="text-2xl font-black">NT$ {{ Math.round(calcPHP * 0.56) }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="activePopup === 'shopping'" class="p-5 flex flex-col h-full">
+                    <div class="flex gap-2 mb-4">
+                        <input v-model="newShopItem" class="flex-1 border rounded-xl px-4 py-2" placeholder="新增商品...">
+                        <button @click="addShopItem" class="bg-teal-600 text-white px-4 rounded-xl font-bold">新增</button>
+                    </div>
+                    <div class="space-y-2 overflow-y-auto">
+                        <div v-for="(item, idx) in shoppingList" :key="idx" class="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                            <span class="font-bold">{{ item }}</span>
+                            <button @click="shoppingList.splice(idx, 1)" class="text-slate-300"><i data-lucide="x" class="w-4 h-4"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
         <div class="map-layer" :class="{'active': showMapLayer}">
-            <button @click="closeMapLayer" class="absolute top-4 left-4 w-10 h-10 bg-white rounded-full shadow-lg z-[500] flex items-center justify-center">
+            <button @click="showMapLayer = false" class="absolute top-4 left-4 w-10 h-10 bg-white rounded-full shadow-lg z-[500] flex items-center justify-center">
                 <i data-lucide="arrow-left" class="w-6 h-6"></i>
             </button>
             <div id="map-container"></div>
@@ -137,54 +182,78 @@
     </div>
 
     <script>
-        const { createApp, ref, computed, onMounted } = Vue;
+        const { createApp, ref, computed, onMounted, watch } = Vue;
 
         createApp({
             setup() {
+                const STORAGE_KEY = 'remi_trip_data_2026';
                 const currentDateIndex = ref(0);
                 const showMapLayer = ref(false);
                 const activePopup = ref(null);
-                
+                const calcPHP = ref('');
+                const newShopItem = ref('');
+                const shoppingList = ref([]);
+
                 const tripDays = [
-                    { date: '2026-02-11', dayShort: 'Wed', dayNum: '11', highlight: '抵達宿霧', location: 'Cebu City' },
-                    { date: '2026-02-12', dayShort: 'Thu', dayNum: '12', highlight: '市區古蹟', location: 'Cebu City' },
-                    // ... 更多日期
+                    { date: '2026-02-11', dayShort: '週三', dayNum: '11', highlight: '抵達宿霧', location: '宿霧市區' },
+                    { date: '2026-02-12', dayShort: '週四', dayNum: '12', highlight: '市區古蹟', location: '宿霧市區' },
+                    { date: '2026-02-13', dayShort: '週五', dayNum: '13', highlight: '前往薄荷', location: '薄荷島' },
+                    { date: '2026-02-14', dayShort: '週六', dayNum: '14', highlight: '沙丁魚與洞穴', location: '薄荷島' },
+                    { date: '2026-02-15', dayShort: '週日', dayNum: '15', highlight: '跳島海龜', location: '薄荷島' },
+                    { date: '2026-02-16', dayShort: '週一', dayNum: '16', highlight: '巧克力山', location: '薄荷島' },
+                    { date: '2026-02-17', dayShort: '週二', dayNum: '17', highlight: '回馬尼拉', location: '馬尼拉' },
+                    { date: '2026-02-18', dayShort: '週三', dayNum: '18', highlight: 'BGC & 返台', location: '馬尼拉' }
                 ];
 
-                const events = ref([
-                    { id: 1, date: '2026-02-11', time: '13:00', title: '飯店 Check-in', locationName: '宿務派克蘭酒店', type: 'hotel', address: 'Cebu Parklane International Hotel', note: '可以先寄放行李' },
-                    { id: 2, date: '2026-02-11', time: '15:00', title: '換匯與購物', locationName: 'Ayala Center', type: 'spot', address: 'Ayala Center Cebu', note: '這裡換匯匯率較好' }
-                ]);
+                const defaultEvents = [
+                    { id: 1, date: '2026-02-11', time: '13:00', title: '飯店 Check-in', locationName: 'Cebu Parklane Hotel', type: 'hotel', address: 'Cebu Parklane International Hotel', note: '寄放行李、稍作休息' },
+                    { id: 2, date: '2026-02-11', time: '14:00', title: '換匯 & Ayala', locationName: 'Ayala Center Cebu', type: 'spot', address: 'Ayala Center Cebu, Cardinal Rosales Ave', note: '匯率較佳' },
+                    { id: 3, date: '2026-02-12', time: '09:00', title: 'Cebu Ocean Park', locationName: 'Cebu Ocean Park', type: 'spot', address: 'Cebu Ocean Park, Cebu City', note: '適合小孩' },
+                    { id: 4, date: '2026-02-13', time: '11:40', title: '搭船 Ocean Jet', locationName: '前往薄荷島', type: 'transport', address: 'Cebu Port Pier 1', note: '需提前一小時到' },
+                    { id: 5, date: '2026-02-16', time: '14:00', title: '巧克力山', locationName: 'Chocolate Hills', type: 'spot', address: 'Chocolate Hills Complex', note: '必看景點' }
+                ];
+
+                const events = ref(JSON.parse(localStorage.getItem(STORAGE_KEY) || JSON.stringify(defaultEvents)));
 
                 const currentDayEvents = computed(() => {
-                    return events.value.filter(e => e.date === tripDays[currentDateIndex.value].date);
+                    return events.value.filter(e => e.date === tripDays[currentDateIndex.value].date).sort((a,b) => a.time.localeCompare(b.time));
                 });
 
                 const changeDate = (idx) => { currentDateIndex.value = idx; };
-                
+
                 const openGoogleMap = (e) => {
-                    const query = encodeURIComponent(e.address || e.locationName);
-                    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+                    const q = encodeURIComponent(e.address || e.locationName);
+                    window.open(`https://www.google.com/maps/search/?api=1&query=${q}`, '_blank');
                 };
 
-                const getCategoryColor = (type) => {
-                    const colors = { hotel: 'bg-indigo-500', spot: 'bg-teal-500', food: 'bg-amber-400' };
-                    return colors[type] || 'bg-slate-400';
+                const deleteEvent = (id) => {
+                    if(confirm('確定刪除此行程？')) events.value = events.value.filter(e => e.id !== id);
                 };
 
-                const openMapLayer = () => { showMapLayer.value = true; };
-                const closeMapLayer = () => { showMapLayer.value = false; };
-                const openPopup = (type) => { activePopup.value = type; };
+                const addShopItem = () => {
+                    if(newShopItem.value) { shoppingList.value.push(newShopItem.value); newShopItem.value = ''; }
+                };
 
-                onMounted(() => {
+                // Watchers for persistence
+                watch(events, (newVal) => { localStorage.setItem(STORAGE_KEY, JSON.stringify(newVal)); }, { deep: true });
+                watch(shoppingList, (newVal) => { localStorage.setItem('remi_shopping', JSON.stringify(newVal)); }, { deep: true });
+
+                const getCategoryName = (c) => ({ spot: '景點', food: '美食', hotel: '住宿', transport: '交通' }[c] || '筆記');
+                const getCategoryColor = (c) => ({ spot: 'bg-teal-500', food: 'bg-amber-400', hotel: 'bg-indigo-500', transport: 'bg-sky-500' }[c] || 'bg-slate-400');
+                const getCategoryBadgeStyle = (c) => ({ spot: 'bg-teal-50 text-teal-600 border-teal-200', food: 'bg-amber-50 text-amber-600 border-amber-200' }[c] || 'bg-slate-50 text-slate-500 border-slate-200');
+
+                onMounted(() => { 
                     lucide.createIcons();
+                    const savedShop = localStorage.getItem('remi_shopping');
+                    if(savedShop) shoppingList.value = JSON.parse(savedShop);
                 });
 
                 return {
-                    tripDays, currentDateIndex, currentDayEvents, 
-                    changeDate, openGoogleMap, getCategoryColor,
-                    showMapLayer, openMapLayer, closeMapLayer,
-                    activePopup, openPopup
+                    tripDays, currentDateIndex, currentDayEvents, changeDate,
+                    openGoogleMap, deleteEvent, getCategoryName, getCategoryColor, getCategoryBadgeStyle,
+                    showMapLayer, activePopup, calcPHP, shoppingList, newShopItem, addShopItem,
+                    openPopup: (t) => activePopup.value = t,
+                    openMapLayer: () => showMapLayer.value = true
                 };
             }
         }).mount('#app');
